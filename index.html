@@ -778,15 +778,15 @@
                     </div>
                     <div class="form-group">
                         <label>Compte</label>
-                        <select id="actionAccount" onchange="populateSections(); adjustAmountSign();"></select>
+                        <select id="actionAccount" onchange="populateSections('actionAccount', 'actionSection', 'actionSubsection'); adjustAmountSign('action');"></select>
                     </div>
                     <div class="form-group">
                         <label>Section</label>
-                        <select id="actionSection" onchange="populateSubsections(); adjustAmountSign();"></select>
+                        <select id="actionSection" onchange="populateSubsections('actionAccount', 'actionSection', 'actionSubsection'); adjustAmountSign('action');"></select>
                     </div>
                     <div class="form-group">
                         <label>Sous-section</label>
-                        <select id="actionSubsection" onchange="adjustAmountSign()"></select>
+                        <select id="actionSubsection" onchange="adjustAmountSign('action')"></select>
                     </div>
                     <div class="form-group">
                         <label>Mois</label>
@@ -893,17 +893,17 @@
                         <label>Nom</label>
                         <input type="text" id="recurrentName" placeholder="Ex: Loyer, Netflix...">
                     </div>
-                    <div class="form-group">
+                                        <div class="form-group">
                         <label>Compte</label>
-                        <select id="recurrentAccount"></select>
+                        <select id="recurrentAccount" onchange="populateSections('recurrentAccount', 'recurrentSection', 'recurrentSubsection'); adjustAmountSign('recurrent');"></select>
                     </div>
                     <div class="form-group">
                         <label>Section</label>
-                        <select id="recurrentSection"></select>
+                        <select id="recurrentSection" onchange="populateSubsections('recurrentAccount', 'recurrentSection', 'recurrentSubsection'); adjustAmountSign('recurrent');"></select>
                     </div>
                     <div class="form-group">
                         <label>Sous-section</label>
-                        <select id="recurrentSubsection"></select>
+                        <select id="recurrentSubsection" onchange="adjustAmountSign('recurrent')"></select>
                     </div>
                     <div class="form-group">
                         <label>Montant Mensuel</label>
@@ -1492,7 +1492,8 @@
             document.getElementById('formTitle').textContent = 'Ajouter une Opération'; 
             document.getElementById('addOrUpdateButton').textContent = 'Ajouter'; 
             document.getElementById('deleteActionButton').style.display = 'none'; 
-            clearActionForm(); 
+            clearActionForm();
+            document.getElementById('actionType').querySelector('option[value="projected"]').disabled = false;
             populateFormDropdowns();
             if (accountId) document.getElementById('actionAccount').value = accountId;
             populateSections();
