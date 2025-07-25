@@ -18,7 +18,7 @@
             --danger-color: #dc3545;       /* Red */
             --warning-color: #ffc107;      /* Yellow */
             --info-color: #0dcaf0;         /* Cyan */
-            --light-bg-color: #e7f0fe;     /* MODIFIÉ: Light Blue Background */
+            --light-bg-color: #e7f0fe;     /* Light Blue Background */
             --text-color: #212529;         /* Dark Gray Text */
             --text-color-light: #6c757d;   /* Lighter Text */
             --border-color: #dee2e6;       /* Light Gray Border */
@@ -74,7 +74,7 @@
         .financial-table { width: 100%; border-collapse: collapse; min-width: 1400px; }
         .financial-table th { background: var(--primary-color); color: white; padding: 15px 10px; text-align: center; font-weight: 600; border: 1px solid #002171; position: sticky; top: 0; z-index: 10; }
         .financial-table td { padding: 8px 10px; border: 1px solid var(--border-color); text-align: left; vertical-align: top; font-size: 14px; position: relative; }
-        .financial-table tr:nth-child(even) { background: var(--light-bg-color); }
+        .financial-table tr:nth-child(even) { background: #f8f9fa; }
         .financial-table tr.subsection-row:hover { background: #e9ecef; }
         .account-header { background: var(--primary-color-dark) !important; font-weight: 700; color: white; }
         .section-header { background: #d4e3ff !important; font-weight: 600; text-align: left !important; padding-left: 20px !important; color: var(--primary-color); }
@@ -97,6 +97,7 @@
         /* --- Modal & Forms --- */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); overflow-y: auto; padding: 40px 0; }
         .modal-content { background: white; margin: 0 auto; padding: 30px; border-radius: var(--border-radius); width: 90%; max-width: 900px; }
+        .modal-content-large { max-width: 1400px; } /* For wide modals */
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); }
         .close { font-size: 28px; font-weight: bold; cursor: pointer; color: #999; }
         .close:hover { color: #333; }
@@ -106,7 +107,7 @@
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 14px; transition: border-color 0.3s; background-color: white; }
         .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--primary-color); }
 
-        /* --- Improved Layouts (New) --- */
+        /* --- Improved Layouts --- */
         .card-style {
             background: white;
             border-radius: var(--border-radius);
@@ -189,6 +190,7 @@
                     <button class="btn btn-primary" onclick="showRecurrentModal()">🔄 Gérer Récurrences</button>
                     <button class="btn btn-primary" onclick="showBudgetManager()">💰 Gérer les Budgets</button>
                     <button class="btn btn-primary" onclick="showStructureManager()">⚙️ Gérer la Structure</button>
+                    <button class="btn btn-info" onclick="showProjectionModal()">🔮 Projection 2 Ans</button>
                     <button class="btn btn-secondary" onclick="logout()">🚪 Déconnexion</button>
                 </div>
             </div>
@@ -248,7 +250,6 @@
         </div>
     </div>
     
-    <!-- MODIFIÉ : Ajout d'ID et d'un bouton de suppression -->
     <div id="transferModal" class="modal">
         <div class="modal-content">
             <div class="modal-header"><h2 id="transferModalTitle">Effectuer un Virement Inter-compte</h2><span class="close" onclick="closeModal('transferModal')">×</span></div>
@@ -302,10 +303,21 @@
         </div>
     </div>
 
+    <div id="projectionModal" class="modal">
+        <div class="modal-content modal-content-large">
+            <div class="modal-header">
+                <h2>Projection sur 2 Ans</h2>
+                <span class="close" onclick="closeModal('projectionModal')">×</span>
+            </div>
+            <div id="projectionContent">
+                <!-- Le contenu sera généré par JavaScript -->
+            </div>
+        </div>
+    </div>
+
 
     <script>
         // --- GLOBAL VARIABLES ---
-        // MODIFIÉ: Ajout de editingTransferId
         let appData = { password: null, years: {}, currentYear: new Date().getFullYear(), editingAction: null, editingRecurrent: null, editingTransferId: null };
         let uiState = { collapsed: {} };
         let structureUiState = { collapsed: {} };
@@ -631,7 +643,6 @@
 
         function editAction(id, type) { 
             const a = appData.years[appData.currentYear][type][id]; if (!a) return; 
-            // MODIFIÉ: Rediriger vers editTransfer si c'est un virement
             if (a.isTransfer) { return editTransfer(id); }
             showAddActionForm();
             document.getElementById('formTitle').textContent="Modifier l'Opération"; document.getElementById('addOrUpdateButton').textContent='Mettre à Jour'; 
@@ -654,7 +665,6 @@
             if (confirm('Êtes-vous sûr(e) ?')) { delete appData.years[appData.currentYear][type][id]; renderTable(); hideAddActionForm(); }
         }
         
-        // MODIFIÉ: Gère l'affichage du modal pour la création
         function showTransferModal() {
             appData.editingTransferId = null;
             const modal = document.getElementById('transferModal');
@@ -679,7 +689,6 @@
             });
         }
         
-        // MODIFIÉ: Gère la création et la mise à jour
         function addTransfer() {
             const n = document.getElementById('transferName').value;
             const src = document.getElementById('transferSourceAccount').value;
@@ -690,7 +699,6 @@
             if (src === dest) return alert("Les comptes doivent être différents.");
             if (isNaN(amt) || amt <= 0) return alert("Veuillez entrer un montant valide.");
 
-            // Si on est en mode édition, on supprime l'ancien virement d'abord
             if (appData.editingTransferId) {
                 delete appData.years[appData.currentYear].actual[`${appData.editingTransferId}_debit`];
                 delete appData.years[appData.currentYear].actual[`${appData.editingTransferId}_credit`];
@@ -718,7 +726,6 @@
 
         function ensureTransferSectionExists(accountId) { const acc=getCurrentStructure().accounts.find(a=>a.id===accountId); if(acc&&!acc.sections.find(s=>s.id===VIREMENT_SECTION_ID))acc.sections.push({id:VIREMENT_SECTION_ID,name:VIREMENT_SECTION_NAME,subsections:[], categoryType: 'expense'}); }
 
-        // MODIFIÉ: Nouvelle fonction pour éditer un virement
         function editTransfer(actionId) {
             const baseId = actionId.split('_').slice(0, 2).join('_');
             const debitAction = appData.years[appData.currentYear].actual[`${baseId}_debit`];
@@ -745,7 +752,6 @@
             modal.style.display = 'block';
         }
 
-        // MODIFIÉ: Nouvelle fonction pour supprimer un virement
         function deleteTransfer() {
             if (!appData.editingTransferId) return;
             if (confirm("Êtes-vous sûr(e) de vouloir supprimer ce virement ?")) {
@@ -760,6 +766,10 @@
 
         // --- STATS, STRUCTURE, BUDGET, RECURRENT ---
         
+        function getCssVariable(variable) {
+            return getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
+        }
+
         // --- STATS MODAL ---
         function showStats() { const m=document.getElementById('statsModal'); m.querySelector('#stats-modal-title').textContent=`Statistiques pour ${appData.currentYear}`; m.querySelector('#statsContent').innerHTML=generateStatsContent(); m.style.display='block'; setTimeout(createCharts, 150); }
         function generateStatsContent() {
@@ -851,7 +861,10 @@
                 totalBalanceData.forEach((_, i) => totalBalanceData[i] += cumulative[i]);
             });
             const balCtx = document.getElementById('balanceOverviewChart'); 
-            if (balCtx) { if (Chart.getChart(balCtx)) Chart.getChart(balCtx).destroy(); new Chart(balCtx, { type: 'line', data: { labels: months, datasets: [{ label: 'Solde Total', data: totalBalanceData, borderColor: 'var(--primary-color)', backgroundColor: 'rgba(13, 71, 161, 0.2)', tension: 0.4, fill: true }] }, options: { responsive: true, animation: false, scales: { y: { ticks: { callback: v => v.toFixed(0) + '€' } } } } }); }
+            if (balCtx) { 
+                if (Chart.getChart(balCtx)) Chart.getChart(balCtx).destroy();
+                new Chart(balCtx, { type: 'line', data: { labels: months, datasets: [{ label: 'Solde Total', data: totalBalanceData, borderColor: getCssVariable('--primary-color'), backgroundColor: 'rgba(13, 71, 161, 0.2)', tension: 0.4, fill: true }] }, options: { responsive: true, animation: false, scales: { y: { ticks: { callback: v => v.toFixed(0) + '€' } } } } }); 
+            }
 
             const monthlyIncome = Array(12).fill(0);
             const monthlyExpensesBySection = {};
@@ -862,11 +875,14 @@
             expenseSections.forEach(sec => { monthlyExpensesBySection[sec.id] = Array(12).fill(0); });
             allActions.forEach(a => { if (a.isTransfer) return; a.months.forEach((amt, i) => { if (amt > 0) { monthlyIncome[i] += amt; } else if (amt < 0) { const sectionId = a.section || 'uncategorized'; if (monthlyExpensesBySection[sectionId]) { monthlyExpensesBySection[sectionId][i] += Math.abs(amt); } } }); });
             const colorPalette = ['#EF5350', '#FFA726', '#5C6BC0', '#FF7043', '#8D6E63', '#EC407A', '#78909C', '#AB47BC'];
-            const datasets = [{ label: 'Revenus', data: monthlyIncome, backgroundColor: 'var(--success-color)', stack: 'incomeStack' }];
+            const datasets = [{ label: 'Revenus', data: monthlyIncome, backgroundColor: getCssVariable('--success-color'), stack: 'incomeStack' }];
             let colorIndex = 0;
             expenseSections.forEach(sec => { if (monthlyExpensesBySection[sec.id].reduce((s, v) => s + v, 0) > 0) { datasets.push({ label: sec.name, data: monthlyExpensesBySection[sec.id], backgroundColor: colorPalette[colorIndex++ % colorPalette.length], stack: 'expenseStack' }); } });
             const incExpCtx = document.getElementById('incomeExpensesChart');
-            if (incExpCtx) { if (Chart.getChart(incExpCtx)) Chart.getChart(incExpCtx).destroy(); new Chart(incExpCtx, { type: 'bar', data: { labels: months, datasets: datasets }, options: { responsive: true, animation: false, plugins: { tooltip: { callbacks: { footer: function(items) { if (items[0].dataset.stack === 'expenseStack') { let total = items.reduce((a, b) => a + b.parsed.y, 0); return 'Total Dépenses: ' + total.toFixed(2) + '€'; } return ''; } } } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { callback: v => v.toFixed(0) + '€' } } } } }); }
+            if (incExpCtx) { 
+                if (Chart.getChart(incExpCtx)) Chart.getChart(incExpCtx).destroy();
+                new Chart(incExpCtx, { type: 'bar', data: { labels: months, datasets: datasets }, options: { responsive: true, animation: false, plugins: { tooltip: { callbacks: { footer: function(items) { if (items[0].dataset.stack === 'expenseStack') { let total = items.reduce((a, b) => a + b.parsed.y, 0); return 'Total Dépenses: ' + total.toFixed(2) + '€'; } return ''; } } } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { callback: v => v.toFixed(0) + '€' } } } } }); 
+            }
         }
         function downloadStatsPNG() { const a=document.getElementById('statsExportArea');html2canvas(a,{backgroundColor:'#ffffff',scale:2}).then(c=>{const d=c.toDataURL('image/png');const e=document.createElement('a');e.href=d;e.download=`statistiques-${appData.currentYear}.png`;e.click();}); }
         
@@ -1031,10 +1047,190 @@
             });
         }
         
+        // --- PROJECTION sur 2 ans ---
+        function showProjectionModal() {
+            const modal = document.getElementById('projectionModal');
+            const contentDiv = document.getElementById('projectionContent');
+            contentDiv.innerHTML = "<p style='text-align:center; padding: 40px;'>Génération de la projection en cours...</p>";
+            modal.style.display = 'block';
+
+            setTimeout(() => {
+                const projectionData = generateProjectionData();
+                contentDiv.innerHTML = generateProjectionContent(projectionData);
+                createProjectionChart(projectionData);
+            }, 50);
+        }
+
+        function generateProjectionData() {
+            const startYear = appData.currentYear;
+            const endYear = startYear + 1;
+            const yearData = appData.years[startYear];
+            if (!yearData) return null;
+
+            const today = new Date();
+            const currentMonthIndex = today.getMonth();
+            const currentFullYear = today.getFullYear();
+            
+            let labels = [];
+            let monthlyIncome = Array(24).fill(0);
+            let monthlyExpenses = Array(24).fill(0);
+            let pointTypes = Array(24).fill('projected'); // Par défaut, tout est projeté
+
+            // --- Année en cours ---
+            const allActionsCurrentYear = getActionsForCurrentYear();
+            for (let i = 0; i < 12; i++) {
+                labels.push(`${months[i]} ${String(startYear).slice(2)}`);
+                
+                let actionsForMonth = [];
+                if (startYear < currentFullYear) {
+                    pointTypes[i] = 'real';
+                    actionsForMonth = allActionsCurrentYear.filter(a => a.type === 'actual' && a.months[i] !== 0);
+                } else if (startYear === currentFullYear) {
+                    if (i < currentMonthIndex) {
+                        pointTypes[i] = 'real';
+                        actionsForMonth = allActionsCurrentYear.filter(a => a.type === 'actual' && a.months[i] !== 0);
+                    } else if (i === currentMonthIndex) {
+                        pointTypes[i] = 'current';
+                        actionsForMonth = allActionsCurrentYear.filter(a => a.months[i] !== 0);
+                    } else {
+                        pointTypes[i] = 'projected';
+                        const actualsInMonth = allActionsCurrentYear.filter(a => a.type === 'actual' && a.months[i] !== 0);
+                        actionsForMonth = actualsInMonth.length > 0 ? actualsInMonth : allActionsCurrentYear.filter(a => a.type === 'projected' && a.months[i] !== 0);
+                    }
+                } else {
+                    pointTypes[i] = 'projected';
+                    const actualsInMonth = allActionsCurrentYear.filter(a => a.type === 'actual' && a.months[i] !== 0);
+                    actionsForMonth = actualsInMonth.length > 0 ? actualsInMonth : allActionsCurrentYear.filter(a => a.type === 'projected' && a.months[i] !== 0);
+                }
+                
+                actionsForMonth.forEach(a => {
+                    if (a.isTransfer) return;
+                    const amount = a.months[i];
+                    if (amount > 0) monthlyIncome[i] += amount;
+                    else monthlyExpenses[i] += Math.abs(amount);
+                });
+            }
+
+            // --- Année suivante ---
+            const recurrentRules = yearData.recurrentTransactions || [];
+            for (let i = 0; i < 12; i++) {
+                const monthIndexInArray = i + 12;
+                labels.push(`${months[i]} ${String(endYear).slice(2)}`);
+                pointTypes[monthIndexInArray] = 'projected';
+                recurrentRules.forEach(rule => {
+                    const monthDate = new Date(endYear, i, 15);
+                    const start = rule.startDate ? new Date(rule.startDate + '-02T00:00:00') : null;
+                    const end = rule.endDate ? new Date(rule.endDate + '-02T00:00:00') : null;
+                    let isActive = true;
+                    if (start && monthDate < start) isActive = false;
+                    if (end && monthDate > end) isActive = false;
+                    
+                    if (isActive) {
+                        if (rule.amount > 0) monthlyIncome[monthIndexInArray] += rule.amount;
+                        else monthlyExpenses[monthIndexInArray] += Math.abs(rule.amount);
+                    }
+                });
+            }
+
+            // --- Calculs finaux ---
+            let totalStartingBalance = 0;
+            (yearData.structure.accounts || []).forEach(acc => {
+                totalStartingBalance += getStartingBalance(acc.id);
+            });
+
+            let monthlyBalance = Array(24).fill(0);
+            let cumulativeBalance = Array(24).fill(0);
+
+            for (let i = 0; i < 24; i++) {
+                monthlyBalance[i] = monthlyIncome[i] - monthlyExpenses[i];
+                if (i === 0) {
+                    cumulativeBalance[i] = totalStartingBalance + monthlyBalance[i];
+                } else {
+                    cumulativeBalance[i] = cumulativeBalance[i - 1] + monthlyBalance[i];
+                }
+            }
+
+            return { labels, monthlyIncome, monthlyExpenses, monthlyBalance, cumulativeBalance, pointTypes };
+        }
+
+        function generateProjectionContent(data) {
+            if (!data) return "<p>Impossible de générer la projection. Assurez-vous que l'année en cours est correctement configurée.</p>";
+
+            let tableHtml = `<div class="table-container" style="max-height: 40vh; margin-bottom: 20px;">
+                                <table class="financial-table">
+                                    <thead>
+                                        <tr><th>Indicateur</th>${data.labels.map(l => `<th>${l}</th>`).join('')}</tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td><strong>Revenus</strong></td>${data.monthlyIncome.map(v => `<td class="amount-positive">${v.toFixed(2)}€</td>`).join('')}</tr>
+                                        <tr><td><strong>Dépenses</strong></td>${data.monthlyExpenses.map(v => `<td class="amount-negative">${v.toFixed(2)}€</td>`).join('')}</tr>
+                                        <tr class="section-total-row"><td><strong>Solde Mensuel</strong></td>${data.monthlyBalance.map(v => `<td class="${v >= 0 ? 'amount-positive' : 'amount-negative'}">${v.toFixed(2)}€</td>`).join('')}</tr>
+                                        <tr class="balance-row"><td><strong>Solde Cumulé</strong></td>${data.cumulativeBalance.map(v => `<td class="${v >= 0 ? 'amount-positive' : 'amount-negative'}">${v.toFixed(2)}€</td>`).join('')}</tr>
+                                    </tbody>
+                                </table>
+                             </div>`;
+
+            let chartHtml = `<h3>Évolution du Solde Projeté</h3><canvas id="projectionChartCanvas"></canvas>`;
+            
+            return tableHtml + chartHtml;
+        }
+
+        function createProjectionChart(data) {
+            if (!data) return;
+            const ctx = document.getElementById('projectionChartCanvas');
+            if (!ctx) return;
+            
+            if (Chart.getChart(ctx)) Chart.getChart(ctx).destroy();
+
+            // MODIFIÉ: Lire les couleurs depuis les variables CSS
+            const realColor = getCssVariable('--success-color');
+            const currentColor = getCssVariable('--warning-color');
+            const projectedColor = getCssVariable('--secondary-color-dark');
+            const primaryColor = getCssVariable('--primary-color');
+
+            const pointBackgroundColors = data.pointTypes.map(type => {
+                switch (type) {
+                    case 'real': return realColor;
+                    case 'current': return currentColor;
+                    case 'projected': return projectedColor;
+                    default: return primaryColor;
+                }
+            });
+
+            const pointRadii = data.pointTypes.map(type => type === 'current' ? 6 : 4);
+            const pointBorderWidths = data.pointTypes.map(type => type === 'current' ? 3 : 1);
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Solde Cumulé Projeté',
+                        data: data.cumulativeBalance,
+                        borderColor: primaryColor,
+                        backgroundColor: 'rgba(13, 71, 161, 0.2)',
+                        tension: 0.1,
+                        fill: true,
+                        pointBackgroundColor: pointBackgroundColors,
+                        pointBorderColor: pointBackgroundColors,
+                        pointRadius: pointRadii,
+                        pointBorderWidth: pointBorderWidths,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    animation: false,
+                    scales: {
+                        y: { ticks: { callback: v => v.toFixed(0) + '€' } }
+                    }
+                }
+            });
+        }
+
         // --- MODAL CONTROLS ---
         function closeModal(modalId) { 
             document.getElementById(modalId).style.display = 'none';
-            // MODIFIÉ: Réinitialiser l'état d'édition à la fermeture
             if (modalId === 'transferModal') {
                 appData.editingTransferId = null;
             }
