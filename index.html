@@ -459,6 +459,7 @@
         #statsModal .financial-table { min-width: 0; }
         #statsModal .financial-table th, #statsModal .financial-table td { text-align: center; padding: 12px 8px; }
         #statsModal .financial-table td.category-name-cell { font-style: italic; color: #555; font-size: 13px; text-align: left; }
+        #statsModal .financial-table td.text-left { text-align: left; }
 
         .chart-container {
             background: white;
@@ -487,15 +488,12 @@
             gap: 10px;
             flex-grow: 1;
         }
-        .category-type-badge {
-            font-size: 11px;
-            font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 10px;
-            color: white;
+        .structure-item-name select {
+            font-size: 12px;
+            padding: 4px 6px;
+            border-radius: 6px;
+            border: 1px solid #B0BEC5;
         }
-        .category-type-badge.income { background-color: #66BB6A; }
-        .category-type-badge.expense { background-color: #EF5350; }
 
         .structure-item.account { border-left-color: #F57C00; }
         .structure-item.section { border-left-color: #FB8C00; margin-left: 20px; }
@@ -610,7 +608,6 @@
                 <div class="logo">🔒 Mon Budget</div>
                 <div class="header-actions">
                     <button class="btn btn-success" onclick="saveDataFile()">💾 Sauvegarder</button>
-                    <button class="btn btn-warning" onclick="exportData()">📄 Exporter CSV</button>
                     <button class="btn btn-primary" onclick="showStats()">📊 Statistiques</button>
                     <button class="btn btn-primary" onclick="showRecurrentModal()">🔄 Gérer Récurrences</button>
                     <button class="btn btn-info" onclick="showBudgetManager()">💰 Gérer les Budgets</button>
@@ -738,17 +735,20 @@
         function createNewYearData(structureToCopy = null) {
             const defaultStructure = {
                 accounts: [{ id: 'account1', name: 'Compte Principal', sections: [
-                    { id: 'income', name: 'Revenus', categoryType: 'income', budgets: [], subsections: [ { id: 'salary', name: 'Salaire', categoryType: 'income', budgets: [] } ]},
-                    { id: 'expenses', name: 'Dépenses', categoryType: 'expense', budgets: [], subsections: [ { id: 'rent', name: 'Loyer', categoryType: 'expense', budgets: [] }, { id: 'food', name: 'Nourriture', categoryType: 'expense', budgets: [] } ]}
+                    { id: 'income', name: 'Revenus', categoryType: 'income', subsections: [ { id: 'salary', name: 'Salaire', categoryType: 'income', budgets: [] } ]},
+                    { id: 'expenses', name: 'Dépenses', categoryType: 'expense', subsections: [ { id: 'rent', name: 'Loyer', categoryType: 'expense', budgets: [] }, { id: 'food', name: 'Nourriture', categoryType: 'expense', budgets: [] } ]}
                 ]}]
             };
-            return {
-                actual: {},
-                projected: {},
-                startingBalances: {},
-                recurrentTransactions: [],
-                structure: structureToCopy ? JSON.parse(JSON.stringify(structureToCopy)) : defaultStructure
-            };
+            if (structureToCopy) {
+                let newStructure = JSON.parse(JSON.stringify(structureToCopy));
+                newStructure.accounts.forEach(acc => {
+                    acc.sections.forEach(sec => {
+                        sec.subsections.forEach(sub => sub.budgets = []);
+                    });
+                });
+                return { actual: {}, projected: {}, startingBalances: {}, recurrentTransactions: [], structure: newStructure };
+            }
+            return { actual: {}, projected: {}, startingBalances: {}, recurrentTransactions: [], structure: defaultStructure };
         }
         
         function saveDataFile() {
@@ -839,14 +839,12 @@
         }
         
         function migrateData(data) {
-            // First migration: structure from root to year
             if (data.structure) {
-                console.log("Migration de l'ancien format de données (structure) en cours...");
+                console.log("Migration (structure) en cours...");
                 Object.keys(data.years).forEach(year => { if (!data.years[year].structure) { data.years[year].structure = JSON.parse(JSON.stringify(data.structure)); } });
                 delete data.structure;
             }
 
-            // Second migration: budget property to budgets array and add categoryType
             Object.keys(data.years).forEach(year => {
                 const yearData = data.years[year];
                 if (!yearData.structure) return;
@@ -855,26 +853,21 @@
                 
                 yearData.structure.accounts.forEach(acc => {
                     acc.sections.forEach(sec => {
-                        // Migrate section
                         if (sec.budget !== undefined) {
-                            console.log(`Migration du budget pour la section: ${sec.name}`);
-                            sec.budgets = sec.budget > 0 ? [{ amount: sec.budget, startMonth: 0, endMonth: 11 }] : [];
                             delete sec.budget;
                         }
                         if (sec.categoryType === undefined) {
                            sec.categoryType = (sec.name.toLowerCase().includes('revenu') || sec.id.toLowerCase().includes('income')) ? 'income' : 'expense';
                         }
-                        if (!sec.budgets) sec.budgets = [];
+                        if (sec.budgets) delete sec.budgets;
 
-                        // Migrate subsections
                         sec.subsections.forEach(sub => {
                             if (sub.budget !== undefined) {
-                                console.log(`Migration du budget pour la sous-section: ${sub.name}`);
                                 sub.budgets = sub.budget > 0 ? [{ amount: sub.budget, startMonth: 0, endMonth: 11 }] : [];
                                 delete sub.budget;
                             }
                             if (sub.categoryType === undefined) {
-                                sub.categoryType = (sub.name.toLowerCase().includes('revenu') || sub.id.toLowerCase().includes('income')) ? 'income' : 'expense';
+                                sub.categoryType = sec.categoryType; // Inherit from section
                             }
                             if (!sub.budgets) sub.budgets = [];
                         });
@@ -887,16 +880,15 @@
             return data;
         }
 
-
         function migrateStructureToArrayFormat(structure) {
             if (!structure || (structure.accounts && Array.isArray(structure.accounts))) { return structure; }
-            console.log("Migration de la structure (objet -> tableau)...");
+            console.log("Migration (objet -> tableau)...");
             const newAccounts = Object.keys(structure.accounts).map(accId => {
                 const account = structure.accounts[accId];
                 const newSections = Object.keys(account.sections).map(secId => {
                     const section = account.sections[secId];
                     const newSubsections = Object.keys(section.subsections).map(subId => ({ id: subId, name: section.subsections[subId].name, budgets: [], categoryType: 'expense' }));
-                    return { id: secId, name: section.name, subsections: newSubsections, budgets: [], categoryType: 'expense' };
+                    return { id: secId, name: section.name, subsections: newSubsections, categoryType: 'expense' };
                 });
                 return { id: accId, name: account.name, sections: newSections };
             });
@@ -977,9 +969,9 @@
                             renderSubsectionRow(table, account.id, section.id, "", { name: '<em>(Opérations sans sous-section)</em>' }, allActions);
                             section.subsections.forEach(subsection => {
                                 renderSubsectionRow(table, account.id, section.id, subsection.id, subsection, allActions);
-                                renderCategoryTotalRow(table, account.id, section.id, subsection.id, subsection, allActions, true);
                             });
-                            renderCategoryTotalRow(table, account.id, section.id, null, section, allActions, false);
+                            // CORRIGÉ: Appel à renderSectionTotalRow, l'ancien renderCategoryTotalRow
+                            renderSectionTotalRow(table, account.id, section.id, section, allActions);
                         }
                     });
                     renderAccountBalanceRow(table, account.id, account, allActions);
@@ -997,51 +989,29 @@
             if (!subsection.id) { html = `<td class="category-cell-no-section">${subsection.name}</td>`; }
             for (let i = 0; i < 12; i++) {
                 const actionsInMonth = relevantActions.filter(a => a.months[i] !== 0);
-                html += `<td>${actionsInMonth.map(a => `<div class="action-item" onclick="editAction('${a.id}', '${a.type}')"><span>${(a.name || '(Sans nom)')}${a.type==='projected'?' (P)':''}</span><span class="${a.months[i]>=0?'amount-positive':'amount-negative'}">${a.months[i].toFixed(2)}€</span>${a.autoGenerated ? '<span class=recurrent-marker>Auto</span>': ''}</div>`).join('')}</td>`;
+                html += `<td>${actionsInMonth.map(a => `<div class="action-item" onclick="editAction('${a.id}', '${a.type}')"><span>${(a.name)}${a.type==='projected'?' (P)':''}</span><span class="${a.months[i]>=0?'amount-positive':'amount-negative'}">${a.months[i].toFixed(2)}€</span>${a.autoGenerated ? '<span class=recurrent-marker>Auto</span>': ''}</div>`).join('')}</td>`;
             }
             row.innerHTML = html; table.appendChild(row);
         }
         
-        function renderCategoryTotalRow(table, accountId, sectionId, subsectionId, category, allActions, isSubsection) {
-            if (category.categoryType !== 'expense' && category.categoryType !== 'income') return;
-
+        // CORRIGÉ: Fonction simplifiée pour n'afficher que le total de la section, sans barres ni détails.
+        function renderSectionTotalRow(table, accountId, sectionId, section, allActions) {
             const row = document.createElement('tr');
             row.className = 'section-total-row';
-            const totalLabel = isSubsection ? `Total ${category.name}` : `Total ${category.name}`;
+            const totalLabel = `Total ${section.name}`;
             let html = `<td><strong>${totalLabel}</strong></td>`;
             
             for (let i = 0; i < 12; i++) {
                 const totalAmount = allActions
-                    .filter(a => a.account === accountId && a.section === sectionId && (!isSubsection || a.subsection === subsectionId))
+                    .filter(a => a.account === accountId && a.section === sectionId)
                     .reduce((sum, a) => sum + a.months[i], 0);
 
-                let budgetHtml;
-                const budget = getActiveBudgetForMonth(category, i);
-
-                if (category.categoryType === 'expense' && budget > 0) {
-                    const amountForCalc = Math.abs(totalAmount);
-                    const percentage = Math.min(100, (amountForCalc / budget) * 100);
-                    let colorClass = 'green';
-                    if (percentage >= 100) colorClass = 'red';
-                    else if (percentage >= 75) colorClass = 'orange';
-                    budgetHtml = `
-                        <div class="budget-text">${amountForCalc.toFixed(2)}€ / ${budget.toFixed(2)}€</div>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar ${colorClass}" style="width: ${percentage}%;"></div>
-                        </div>`;
-                } else {
-                    const amountClass = totalAmount >= 0 ? 'amount-positive' : 'amount-negative';
-                    budgetHtml = `<div class="${amountClass}">${totalAmount.toFixed(2)}€</div>`;
-                    if (category.categoryType === 'expense') {
-                         budgetHtml += `<div class="progress-bar-container"><div class="progress-bar grey" style="width: 100%;"></div></div>`;
-                    }
-                }
-                html += `<td>${budgetHtml}</td>`;
+                const amountClass = totalAmount >= 0 ? 'amount-positive' : 'amount-negative';
+                html += `<td><div class="${amountClass}">${totalAmount.toFixed(2)}€</div></td>`;
             }
             row.innerHTML = html;
             table.appendChild(row);
         }
-
 
         function renderAccountBalanceRow(table, accountId, account, allActions) {
             const row = document.createElement('tr'); row.className = 'balance-row'; let net = Array(12).fill(0);
@@ -1238,7 +1208,7 @@
         }
         function ensureTransferSectionExists(accountId) {
             const acc=getCurrentStructure().accounts.find(a=>a.id===accountId);
-            if(acc&&!acc.sections.find(s=>s.id===VIREMENT_SECTION_ID))acc.sections.push({id:VIREMENT_SECTION_ID,name:VIREMENT_SECTION_NAME,subsections:[], categoryType: 'expense', budgets: [] });
+            if(acc&&!acc.sections.find(s=>s.id===VIREMENT_SECTION_ID))acc.sections.push({id:VIREMENT_SECTION_ID,name:VIREMENT_SECTION_NAME,subsections:[], categoryType: 'expense'});
         }
 
         // --- STATS MODAL ---
@@ -1251,18 +1221,13 @@
             const monthlyIncome = Array(12).fill(0);
             const monthlyExpenses = Array(12).fill(0);
             const monthlyTotalBudget = Array(12).fill(0);
-            const monthlyBiggestExpenseCategory = Array(12).fill('-');
+            const monthlyBiggestExpenseCategory = Array(12).fill('—');
 
             structure.accounts.forEach(account => {
                 account.sections.forEach(section => {
-                    if (section.categoryType === 'expense') {
-                        for(let i=0; i<12; i++) { monthlyTotalBudget[i] += getActiveBudgetForMonth(section, i); }
+                    for(let i=0; i<12; i++) {
+                        monthlyTotalBudget[i] += getSectionBudgetForMonth(section, i);
                     }
-                    section.subsections.forEach(subsection => {
-                         if (subsection.categoryType === 'expense') {
-                            for(let i=0; i<12; i++) { monthlyTotalBudget[i] += getActiveBudgetForMonth(subsection, i); }
-                         }
-                    });
                 });
             });
 
@@ -1281,8 +1246,7 @@
                         const account = structure.accounts.find(acc => acc.id === action.account);
                         const section = account ? account.sections.find(sec => sec.id === action.section) : null;
                         const subsection = section ? section.subsections.find(sub => sub.id === action.subsection) : null;
-                        let categoryName = section ? section.name : 'Non Catégorisé';
-                        if (subsection) categoryName += ` > ${subsection.name}`;
+                        let categoryName = subsection ? subsection.name : (section ? section.name : 'Non Catégorisé');
                         expensesInMonthByCategory[categoryName] = (expensesInMonthByCategory[categoryName] || 0) + expenseAmount;
                     }
                 });
@@ -1292,7 +1256,8 @@
                 }
             }
             
-            let tableHtml = `
+            let summaryTableHtml = `
+                <h3>Résumé Annuel</h3>
                 <div class="table-container" style="margin-bottom: 20px;">
                     <table class="financial-table">
                         <thead>
@@ -1314,7 +1279,7 @@
                 const budgetDiff = monthlyTotalBudget[i] - monthlyExpenses[i];
                 const budgetDiffClass = budgetDiff >= 0 ? 'amount-positive' : 'amount-negative';
                 
-                tableHtml += `
+                summaryTableHtml += `
                     <tr>
                         <td><strong>${months[i]}</strong></td>
                         <td class="amount-positive">${monthlyIncome[i].toFixed(2)}€</td>
@@ -1325,17 +1290,72 @@
                         <td class="category-name-cell">${monthlyBiggestExpenseCategory[i]}</td>
                     </tr>`;
             }
-
-            tableHtml += '</tbody></table></div>';
+            summaryTableHtml += '</tbody></table></div>';
             
+            // CORRIGÉ: Génération du nouveau tableau détaillé
+            let detailTableHtml = `
+                <h3 style="margin-top: 30px;">Détail Dépenses vs. Budget par Mois</h3>
+                <div class="table-container">
+                    <table class="financial-table">
+                        <thead>
+                            <tr>
+                                <th>Mois</th>
+                                <th>Section</th>
+                                <th>Sous-section</th>
+                                <th>Dépenses</th>
+                                <th>Budget</th>
+                                <th>Différence</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+
+            for (let i = 0; i < 12; i++) {
+                const monthRows = [];
+                structure.accounts.forEach(account => {
+                    account.sections.forEach(section => {
+                        section.subsections.forEach(subsection => {
+                            if (subsection.categoryType === 'expense') {
+                                const spent = Math.abs(allActions.filter(a => a.account === account.id && a.section === section.id && a.subsection === subsection.id).reduce((sum, a) => sum + (a.months[i] || 0), 0));
+                                const budget = getActiveBudgetForMonth(subsection, i);
+                                if (spent > 0 || budget > 0) {
+                                    const diff = budget - spent;
+                                    const diffClass = diff >= 0 ? 'amount-positive' : 'amount-negative';
+                                    monthRows.push({
+                                        sectionName: section.name,
+                                        subsectionName: subsection.name,
+                                        spent: spent.toFixed(2) + '€',
+                                        budget: budget > 0 ? budget.toFixed(2) + '€' : '—',
+                                        diff: budget > 0 ? `<span class="${diffClass}">${diff.toFixed(2)}€</span>` : '—'
+                                    });
+                                }
+                            }
+                        });
+                    });
+                });
+                
+                if (monthRows.length > 0) {
+                    monthRows.forEach((row, rowIndex) => {
+                        detailTableHtml += `<tr>`;
+                        if (rowIndex === 0) {
+                            detailTableHtml += `<td rowspan="${monthRows.length}"><strong>${fullMonths[i]}</strong></td>`;
+                        }
+                        detailTableHtml += `<td class="text-left">${row.sectionName}</td><td class="text-left">${row.subsectionName}</td><td>${row.spent}</td><td>${row.budget}</td><td>${row.diff}</td>`;
+                        detailTableHtml += `</tr>`;
+                    });
+                }
+            }
+            detailTableHtml += '</tbody></table></div>';
+
             return `
                 <div style="margin-bottom: 20px;"><button class="btn btn-primary" onclick="downloadStatsPNG()">🖼️ Télécharger l'Image</button></div>
                 <div id="statsExportArea">
-                    ${tableHtml}
+                    ${summaryTableHtml}
+                    ${detailTableHtml}
                     <div class="chart-container"><h3>Aperçu du Solde Total</h3><canvas id="balanceOverviewChart"></canvas></div>
                     <div class="chart-container"><h3>Revenus vs Dépenses par Mois</h3><canvas id="incomeExpensesChart"></canvas></div>
                 </div>`;
         }
+
 
         function createCharts() {
             const allActions = getActualActionsForCurrentYear();
@@ -1413,16 +1433,22 @@
                       </div>`;
                 if (!structureUiState.collapsed[account.id]) {
                     account.sections.forEach((section) => {
-                        const typeBadge = `<span class="category-type-badge ${section.categoryType}">${section.categoryType === 'income' ? 'Revenu' : 'Dépense'}</span>`;
+                        const typeDropdown = `<select onchange="updateCategoryType('section', {accountId: '${account.id}', sectionId: '${section.id}'}, this.value)">
+                            <option value="expense" ${section.categoryType === 'expense' ? 'selected' : ''}>Dépense</option>
+                            <option value="income" ${section.categoryType === 'income' ? 'selected' : ''}>Revenu</option>
+                        </select>`;
                         h += `<div class="structure-item section">
-                                <div class="structure-item-name"><span style="cursor: pointer;" onclick="toggleStructureSectionCollapse('${section.id}')">${structureUiState.collapsed[section.id] ? '▶' : '▼'} ${section.name}</span> ${typeBadge}</div>
+                                <div class="structure-item-name"><span style="cursor: pointer;" onclick="toggleStructureSectionCollapse('${section.id}')">${structureUiState.collapsed[section.id] ? '▶' : '▼'} ${section.name}</span> ${typeDropdown}</div>
                                 <div class="structure-actions"><button class="btn btn-primary" onclick="addNewSubsection('${account.id}', '${section.id}')">+ Sous-section</button><button class="btn btn-warning" onclick="editSection('${account.id}', '${section.id}')">Modifier</button><button class="btn btn-danger" onclick="deleteSection('${account.id}', '${section.id}')">Supprimer</button></div>
                               </div>`;
                         if (!structureUiState.collapsed[section.id]) {
                             section.subsections.forEach((subsection) => {
-                                const subTypeBadge = `<span class="category-type-badge ${subsection.categoryType}">${subsection.categoryType === 'income' ? 'Revenu' : 'Dépense'}</span>`;
+                                const subTypeDropdown = `<select onchange="updateCategoryType('subsection', {accountId: '${account.id}', sectionId: '${section.id}', subsectionId: '${subsection.id}'}, this.value)">
+                                    <option value="expense" ${subsection.categoryType === 'expense' ? 'selected' : ''}>Dépense</option>
+                                    <option value="income" ${subsection.categoryType === 'income' ? 'selected' : ''}>Revenu</option>
+                                </select>`;
                                 h += `<div class="structure-item subsection">
-                                        <div class="structure-item-name"><span>${subsection.name}</span> ${subTypeBadge}</div>
+                                        <div class="structure-item-name"><span>${subsection.name}</span> ${subTypeDropdown}</div>
                                         <div class="structure-actions"><button class="btn btn-warning" onclick="editSubsection('${account.id}', '${section.id}', '${subsection.id}')">Modifier</button><button class="btn btn-danger" onclick="deleteSubsection('${account.id}', '${section.id}', '${subsection.id}')">Supprimer</button></div>
                                       </div>`;
                             });
@@ -1433,9 +1459,32 @@
             return h;
         }
 
+        function updateCategoryType(level, ids, newType) {
+            let category;
+            const account = getCurrentStructure().accounts.find(a => a.id === ids.accountId);
+            if (!account) return;
+            const section = account.sections.find(s => s.id === ids.sectionId);
+            if (!section) return;
+
+            if (level === 'section') category = section;
+            else if (level === 'subsection') category = section.subsections.find(ss => ss.id === ids.subsectionId);
+
+            if (category) {
+                category.categoryType = newType;
+                if (level === 'section') { // Propagate type to subsections
+                    category.subsections.forEach(sub => sub.categoryType = newType);
+                }
+                if (newType === 'income' && category.budgets) {
+                    category.budgets = []; // Clear budgets if switched to income
+                }
+                renderTable();
+                showStructureManager(); // Refresh modal
+            }
+        }
+
         function addNewAccount(){const n=prompt("Nom du nouveau compte:");if(n){const i='account_'+Date.now();getCurrentStructure().accounts.push({id:i,name:n,sections:[]});renderStructureAndAll();}}
-        function addNewSection(aId){const n=prompt("Nom de la nouvelle section:");if(n){const a=getCurrentStructure().accounts.find(x=>x.id===aId);if(a){const i='section_'+Date.now(); const isExpense=confirm("S'agit-il d'une catégorie de DÉPENSE ?\n(Cliquez sur 'OK' pour Dépense, 'Annuler' pour Revenu)"); a.sections.push({id:i,name:n,subsections:[],budgets:[],categoryType:isExpense?'expense':'income'});renderStructureAndAll();}}}
-        function addNewSubsection(aId,sId){const e=prompt("Nom de la nouvelle sous-section:");if(e){const a=getCurrentStructure().accounts.find(x=>x.id===aId);if(a){const s=a.sections.find(x=>x.id===sId);if(s){const i='subsection_'+Date.now();const isExpense=confirm("S'agit-il d'une catégorie de DÉPENSE ?\n(Cliquez sur 'OK' pour Dépense, 'Annuler' pour Revenu)"); s.subsections.push({id:i,name:e,budgets:[],categoryType:isExpense?'expense':'income'});renderStructureAndAll();}}}}
+        function addNewSection(aId){const n=prompt("Nom de la nouvelle section:");if(n){const a=getCurrentStructure().accounts.find(x=>x.id===aId);if(a){const i='section_'+Date.now(); a.sections.push({id:i,name:n,subsections:[],categoryType:'expense'});renderStructureAndAll();}}}
+        function addNewSubsection(aId,sId){const e=prompt("Nom de la nouvelle sous-section:");if(e){const a=getCurrentStructure().accounts.find(x=>x.id===aId);if(a){const s=a.sections.find(x=>x.id===sId);if(s){const i='subsection_'+Date.now(); s.subsections.push({id:i,name:e,budgets:[],categoryType:s.categoryType});renderStructureAndAll();}}}}
         function editAccount(aId){const a=getCurrentStructure().accounts.find(x=>x.id===aId);if(!a)return;const e=prompt("Modifier le nom:",a.name);if(e&&e!==a.name){a.name=e;renderStructureAndAll();}}
         function editSection(aId,sId){const a=getCurrentStructure().accounts.find(x=>x.id===aId);if(!a)return;const s=a.sections.find(x=>x.id===sId);if(!s)return;const o=prompt("Modifier le nom:",s.name);if(o&&o!==s.name){s.name=o;renderStructureAndAll();}}
         function editSubsection(aId,sId,ssId){const a=getCurrentStructure().accounts.find(x=>x.id===aId);if(!a)return;const s=a.sections.find(x=>x.id===sId);if(!s)return;const ss=s.subsections.find(x=>x.id===ssId);if(!ss)return;const n=prompt("Modifier le nom:",ss.name);if(n&&n!==ss.name){ss.name=n;renderStructureAndAll();}}
@@ -1446,10 +1495,17 @@
         function renderStructureAndAll() { document.getElementById('structureContent').innerHTML = generateStructureContent(); populateFormDropdowns(); renderTable(); renderStartingBalances(); }
 
         // --- BUDGET MANAGEMENT ---
-        function getActiveBudgetForMonth(category, monthIndex) {
-            if (!category.budgets || category.categoryType !== 'expense') return 0;
-            const budgetPeriod = category.budgets.find(b => monthIndex >= b.startMonth && monthIndex <= b.endMonth);
+        function getActiveBudgetForMonth(subsection, monthIndex) {
+            if (!subsection.budgets || subsection.categoryType !== 'expense') return 0;
+            const budgetPeriod = subsection.budgets.find(b => monthIndex >= b.startMonth && monthIndex <= b.endMonth);
             return budgetPeriod ? budgetPeriod.amount : 0;
+        }
+
+        function getSectionBudgetForMonth(section, monthIndex) {
+            if (section.categoryType !== 'expense') return 0;
+            return section.subsections.reduce((total, sub) => {
+                return total + getActiveBudgetForMonth(sub, monthIndex);
+            }, 0);
         }
 
         function showBudgetManager() {
@@ -1464,60 +1520,55 @@
             const monthOptions = fullMonths.map((m, i) => `<option value="${i}">${m}</option>`).join('');
 
             structure.accounts.forEach(account => {
-                const expenseCategories = account.sections.filter(s => s.categoryType === 'expense' || s.subsections.some(ss => ss.categoryType === 'expense'));
-                if (expenseCategories.length === 0) return;
+                const expenseSubsectionsExist = account.sections.some(s => s.subsections.some(ss => ss.categoryType === 'expense'));
+                if (!expenseSubsectionsExist) return;
 
                 html += `<h3 style="margin-top: 20px; padding-bottom: 5px; border-bottom: 2px solid #F57C00;">${account.name}</h3>`;
                 
                 account.sections.forEach(section => {
-                    if (section.categoryType === 'expense') {
-                         html += `<div class="structure-item section">
-                                    <div class="structure-item-name">${section.name}</div>
-                                 </div>
-                                 <div style="margin-left: 20px; margin-bottom: 15px;">
-                                    ${generateBudgetPeriodsList('section', {accountId: account.id, sectionId: section.id}, section.budgets)}
-                                    ${generateBudgetForm('section', {accountId: account.id, sectionId: section.id}, monthOptions)}
-                                 </div>`;
-                    }
-                    section.subsections.forEach(subsection => {
-                         if (subsection.categoryType === 'expense') {
-                              html += `<div class="structure-item subsection">
-                                        <div class="structure-item-name">${subsection.name}</div>
+                    const expenseSubsections = section.subsections.filter(ss => ss.categoryType === 'expense');
+                    if (expenseSubsections.length > 0) {
+                        html += `<div class="structure-item section" style="background: transparent; border: none; box-shadow: none; margin-left: 0; padding-left: 0;"><div class="structure-item-name"><strong>${section.name}</strong></div></div>`;
+                        expenseSubsections.forEach(subsection => {
+                             html += `<div class="structure-item subsection">
+                                       <div class="structure-item-name">${subsection.name}</div>
                                      </div>
                                      <div style="margin-left: 40px; margin-bottom: 15px;">
-                                        ${generateBudgetPeriodsList('subsection', {accountId: account.id, sectionId: section.id, subsectionId: subsection.id}, subsection.budgets)}
-                                        ${generateBudgetForm('subsection', {accountId: account.id, sectionId: section.id, subsectionId: subsection.id}, monthOptions)}
+                                        ${generateBudgetPeriodsList({accountId: account.id, sectionId: section.id, subsectionId: subsection.id}, subsection.budgets)}
+                                        ${generateBudgetForm({accountId: account.id, sectionId: section.id, subsectionId: subsection.id}, monthOptions)}
                                      </div>`;
-                         }
-                    });
+                        });
+                    }
                 });
             });
-            return html || "<p>Aucune catégorie de dépense n'a été définie dans la structure.</p>";
+            return html || "<p>Aucune sous-catégorie de dépense n'a été définie. Vous ne pouvez définir des budgets que sur des sous-catégories de type 'Dépense'.</p>";
         }
 
-        function generateBudgetPeriodsList(level, ids, budgets) {
+        function generateBudgetPeriodsList(ids, budgets) {
             if (!budgets || budgets.length === 0) return '<p style="font-size: 13px; color: #777;">Aucun budget défini.</p>';
             return budgets.map((b, index) => `
                 <div class="budget-period">
                     <span><strong>${b.amount.toFixed(2)}€</strong> de ${fullMonths[b.startMonth]} à ${fullMonths[b.endMonth]}</span>
-                    <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="deleteBudgetPeriod('${level}', JSON.parse(atob('${btoa(JSON.stringify(ids))}')), ${index})">X</button>
+                    <button class="btn btn-danger" style="padding: 4px 8px; font-size: 12px;" onclick="deleteBudgetPeriod(JSON.parse(atob('${btoa(JSON.stringify(ids))}')), ${index})">X</button>
                 </div>
             `).join('');
         }
 
-        function generateBudgetForm(level, ids, monthOptions) {
+        function generateBudgetForm(ids, monthOptions) {
+            const uniqueId = `${ids.accountId}-${ids.sectionId}-${ids.subsectionId}`;
             return `<div class="budget-form">
-                        <input type="number" placeholder="Montant" id="budget-amount-${level}-${ids.sectionId || ''}${ids.subsectionId || ''}" step="0.01">
-                        <select id="budget-start-${level}-${ids.sectionId || ''}${ids.subsectionId || ''}">${monthOptions}</select>
-                        <select id="budget-end-${level}-${ids.sectionId || ''}${ids.subsectionId || ''}">${monthOptions}</select>
-                        <button class="btn btn-success" onclick="addBudgetPeriod('${level}', JSON.parse(atob('${btoa(JSON.stringify(ids))}')))">Ajouter</button>
+                        <input type="number" placeholder="Montant" id="budget-amount-${uniqueId}" step="0.01">
+                        <select id="budget-start-${uniqueId}">${monthOptions}</select>
+                        <select id="budget-end-${uniqueId}">${monthOptions}</select>
+                        <button class="btn btn-success" onclick="addBudgetPeriod(JSON.parse(atob('${btoa(JSON.stringify(ids))}')))">Ajouter</button>
                     </div>`;
         }
         
-        function addBudgetPeriod(level, ids) {
-            const amountInput = document.getElementById(`budget-amount-${level}-${ids.sectionId || ''}${ids.subsectionId || ''}`);
-            const startInput = document.getElementById(`budget-start-${level}-${ids.sectionId || ''}${ids.subsectionId || ''}`);
-            const endInput = document.getElementById(`budget-end-${level}-${ids.sectionId || ''}${ids.subsectionId || ''}`);
+        function addBudgetPeriod(ids) {
+            const uniqueId = `${ids.accountId}-${ids.sectionId}-${ids.subsectionId}`;
+            const amountInput = document.getElementById(`budget-amount-${uniqueId}`);
+            const startInput = document.getElementById(`budget-start-${uniqueId}`);
+            const endInput = document.getElementById(`budget-end-${uniqueId}`);
 
             const amount = parseFloat(amountInput.value);
             const startMonth = parseInt(startInput.value);
@@ -1526,46 +1577,36 @@
             if (isNaN(amount) || amount <= 0) return alert('Veuillez entrer un montant valide.');
             if (startMonth > endMonth) return alert('Le mois de début ne peut pas être après le mois de fin.');
 
-            let category;
             const account = getCurrentStructure().accounts.find(a => a.id === ids.accountId);
             if (!account) return;
             const section = account.sections.find(s => s.id === ids.sectionId);
             if (!section) return;
+            const subsection = section.subsections.find(ss => ss.id === ids.subsectionId);
+            if (!subsection) return;
 
-            if (level === 'section') category = section;
-            else if (level === 'subsection') category = section.subsections.find(ss => ss.id === ids.subsectionId);
-            
-            if (!category) return;
-            if (!category.budgets) category.budgets = [];
-
-            // Check for overlaps
             const newPeriod = { startMonth, endMonth };
-            const isOverlapping = category.budgets.some(p => Math.max(p.startMonth, newPeriod.startMonth) <= Math.min(p.endMonth, newPeriod.endMonth));
+            const isOverlapping = subsection.budgets.some(p => Math.max(p.startMonth, newPeriod.startMonth) <= Math.min(p.endMonth, newPeriod.endMonth));
             if (isOverlapping) return alert("Cette période de budget chevauche une période existante. Veuillez supprimer l'ancienne d'abord.");
 
-            category.budgets.push({ amount, startMonth, endMonth });
-            category.budgets.sort((a,b) => a.startMonth - b.startMonth); // Keep it sorted
-            showBudgetManager(); // Re-render the modal
-            renderTable(); // Update the main table with new budget info
+            subsection.budgets.push({ amount, startMonth, endMonth });
+            subsection.budgets.sort((a,b) => a.startMonth - b.startMonth);
+            showBudgetManager();
+            renderTable();
         }
 
-        function deleteBudgetPeriod(level, ids, index) {
-            let category;
+        function deleteBudgetPeriod(ids, index) {
             const account = getCurrentStructure().accounts.find(a => a.id === ids.accountId);
             if (!account) return;
             const section = account.sections.find(s => s.id === ids.sectionId);
             if (!section) return;
+            const subsection = section.subsections.find(ss => ss.id === ids.subsectionId);
 
-            if (level === 'section') category = section;
-            else if (level === 'subsection') category = section.subsections.find(ss => ss.id === ids.subsectionId);
-
-            if (category && category.budgets[index] !== undefined) {
-                category.budgets.splice(index, 1);
-                showBudgetManager(); // Re-render the modal
+            if (subsection && subsection.budgets[index] !== undefined) {
+                subsection.budgets.splice(index, 1);
+                showBudgetManager();
                 renderTable();
             }
         }
-
 
         // --- RECURRENT TRANSACTIONS ---
         function showRecurrentModal() {
@@ -1585,7 +1626,7 @@
             let html = '<h3>Opérations Récurrentes Actives</h3>';
             transactions.forEach(t => {
                 html += `<div class="structure-item">
-                            <span><strong>${t.name || '(Sans nom)'}</strong> (${t.amount.toFixed(2)}€/mois)</span>
+                            <span><strong>${t.name}</strong> (${t.amount.toFixed(2)}€/mois)</span>
                             <div class="structure-actions">
                                 <button class="btn btn-warning" onclick="editRecurrentTransaction('${t.id}')">Modifier</button>
                                 <button class="btn btn-danger" onclick="deleteRecurrentTransaction('${t.id}')">Supprimer</button>
