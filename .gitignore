@@ -1,0 +1,10 @@
+# Fichiers de dépendances
+node_modules/
+
+# Fichiers de configuration d'édition
+.vscode/
+.idea/
+
+# Fichiers de build
+dist/
+build/
