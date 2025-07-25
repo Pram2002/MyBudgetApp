@@ -685,18 +685,25 @@
     <div id="recurrentModal" class="modal">
         <div class="modal-content">
             <div class="modal-header"><h2>Gérer les Opérations Récurrentes</h2><span class="close" onclick="closeModal('recurrentModal')">×</span></div>
-            <p style="margin-bottom:20px; font-style:italic;">Ces opérations seront automatiquement ajoutées en "Projeté" pour chaque mois de l'année en cours.</p>
+            <p style="margin-bottom:20px; font-style:italic;">Ces opérations seront automatiquement ajoutées pour chaque mois de l'année en cours.</p>
             
             <div class="recurrent-form">
                 <h3 id="recurrentFormTitle">Ajouter une Opération Récurrente</h3>
                 <div class="form-grid">
-                    <div class="form-group"><label>Nom (optionnel)</label><input type="text" id="recurrentName" placeholder="Ex: Loyer, Netflix..."></div>
+                    <div class="form-group"><label>Nom</label><input type="text" id="recurrentName" placeholder="Ex: Loyer, Netflix..."></div>
                     <div class="form-group"><label>Compte</label><select id="recurrentAccount"></select></div>
                     <div class="form-group"><label>Section</label><select id="recurrentSection"></select></div>
                     <div class="form-group"><label>Sous-section</label><select id="recurrentSubsection"></select></div>
                     <div class="form-group"><label>Montant Mensuel</label><input type="number" id="recurrentAmount" placeholder="Montant (+ ou -)" step="0.01"></div>
                     <div class="form-group"><label>Date de début (AAAA-MM)</label><input type="month" id="recurrentStartDate"></div>
-                    <div class="form-group"><label>Date de fin (AAAA-MM, optionnel)</label><input type="month" id="recurrentEndDate"></div>
+                    <div class="form-group"><label>Date de fin (AAAA-MM)</label><input type="month" id="recurrentEndDate"></div>
+                    <div class="form-group">
+                        <label>Type</label>
+                        <select id="recurrentType">
+                            <option value="projected">Projeté (Auto)</option>
+                            <option value="actual">Réel</option>
+                        </select>
+                    </div>
                 </div>
                 <div style="display: flex; gap: 10px;">
                     <button id="addOrUpdateRecurrentButton" class="btn btn-primary" onclick="saveRecurrentTransaction()">Ajouter</button>
@@ -828,7 +835,7 @@
                 }
             }
             resetUiState();
-            generateProjectedFromRecurrent();
+            applyRecurrentTransactions();
             renderAll();
         }
         function renderAll() {
@@ -912,14 +919,14 @@
 
         // --- UI & TABLE RENDERING ---
         function renderYearTabs() { const c = document.getElementById('yearTabs'); c.innerHTML = ''; const y = Object.keys(appData.years).sort((a,b)=>parseInt(b)-parseInt(a)); y.forEach(y => { const t = document.createElement('div'); t.className = `year-tab ${y == appData.currentYear ? 'active' : ''}`; t.textContent = y; t.onclick = () => switchYear(y); c.appendChild(t); }); }
-        function switchYear(y) { appData.currentYear = parseInt(y); resetUiState(); generateProjectedFromRecurrent(); renderAll(); }
+        function switchYear(y) { appData.currentYear = parseInt(y); resetUiState(); applyRecurrentTransactions(); renderAll(); }
         function addNewYear() {
             const y = prompt("Entrez l'année (AAAA) :");
             if (y && /^\d{4}$/.test(y)) {
                 const i = parseInt(y);
                 if (!appData.years[i]) {
                     appData.years[i] = createNewYearData(getCurrentStructure());
-                    appData.currentYear = i; resetUiState(); generateProjectedFromRecurrent(); renderAll();
+                    appData.currentYear = i; resetUiState(); applyRecurrentTransactions(); renderAll();
                 }
             }
         }
@@ -970,7 +977,6 @@
                             section.subsections.forEach(subsection => {
                                 renderSubsectionRow(table, account.id, section.id, subsection.id, subsection, allActions);
                             });
-                            // CORRIGÉ: Appel à renderSectionTotalRow, l'ancien renderCategoryTotalRow
                             renderSectionTotalRow(table, account.id, section.id, section, allActions);
                         }
                     });
@@ -994,7 +1000,6 @@
             row.innerHTML = html; table.appendChild(row);
         }
         
-        // CORRIGÉ: Fonction simplifiée pour n'afficher que le total de la section, sans barres ni détails.
         function renderSectionTotalRow(table, accountId, sectionId, section, allActions) {
             const row = document.createElement('tr');
             row.className = 'section-total-row';
@@ -1089,7 +1094,7 @@
             }
         }
         
-        function addAction() { 
+        function addAction() {
             const n = document.getElementById('actionName').value;
             const a = document.getElementById('actionAccount').value;
             const s = document.getElementById('actionSection').value;
@@ -1103,18 +1108,25 @@
             if (appData.editingAction) {
                 const originalAction = appData.years[appData.currentYear][appData.editingAction.type][appData.editingAction.id];
 
+                // CORRECTION: Logique pour "réaliser" une opération automatique
                 if (originalAction && originalAction.autoGenerated && t === 'actual') {
+                    // Créer une nouvelle opération réelle
                     const newId = 'action_' + Date.now();
-                    if (!appData.years[appData.currentYear]['actual']) { appData.years[appData.currentYear]['actual'] = {}; }
-                    const newActualAction = { id: newId, name: n, account: a, section: s, subsection: ss, months: Array(12).fill(0) };
+                    const newActualAction = { id: newId, name: n, account: a, section: s, subsection: ss, months: Array(12).fill(0), autoGenerated: false, recurrentSourceId: originalAction.recurrentSourceId };
                     newActualAction.months[m] = amt;
+                    
+                    if (!appData.years[appData.currentYear]['actual']) { appData.years[appData.currentYear]['actual'] = {}; }
                     appData.years[appData.currentYear]['actual'][newId] = newActualAction;
-                    originalAction.months[m] = 0;
+
+                    // Supprimer l'ancienne opération projetée pour ce mois
+                    delete appData.years[appData.currentYear][originalAction.type][originalAction.id];
+                    
                     renderTable(); 
                     hideAddActionForm();
                     return;
                 }
-
+                
+                // Logique de modification standard
                 const originalType = appData.editingAction.type;
                 const originalId = appData.editingAction.id;
                 
@@ -1157,6 +1169,11 @@
             populateSubsections(); document.getElementById('actionSubsection').value = a.subsection || "";
             document.getElementById('actionMonth').value=m; document.getElementById('actionAmount').value=a.months[m]||0; 
             document.getElementById('actionType').value = a.autoGenerated ? 'actual' : type; 
+            if(a.autoGenerated) {
+                document.getElementById('actionType').querySelector('option[value="projected"]').disabled = true;
+            } else {
+                document.getElementById('actionType').querySelector('option[value="projected"]').disabled = false;
+            }
             appData.editingAction = {id, type};
         }
 
@@ -1292,7 +1309,6 @@
             }
             summaryTableHtml += '</tbody></table></div>';
             
-            // CORRIGÉ: Génération du nouveau tableau détaillé
             let detailTableHtml = `
                 <h3 style="margin-top: 30px;">Détail Dépenses vs. Budget par Mois</h3>
                 <div class="table-container">
@@ -1423,6 +1439,16 @@
         
         // --- STRUCTURE MANAGEMENT ---
         function showStructureManager() { structureUiState.collapsed = {}; const m = document.getElementById('structureModal'); const c = document.getElementById('structureContent'); c.innerHTML = generateStructureContent(); m.style.display = 'block'; }
+        
+        function toggleStructureAccountCollapse(accountId) {
+            structureUiState.collapsed[accountId] = !structureUiState.collapsed[accountId];
+            document.getElementById('structureContent').innerHTML = generateStructureContent();
+        }
+        function toggleStructureSectionCollapse(sectionId) {
+            structureUiState.collapsed[sectionId] = !structureUiState.collapsed[sectionId];
+            document.getElementById('structureContent').innerHTML = generateStructureContent();
+        }
+
         function generateStructureContent() {
             let h = '<div style="margin-bottom: 20px;"><button class="btn btn-primary" onclick="addNewAccount()">+ Ajouter Compte</button></div>';
             const accounts = getCurrentStructure().accounts;
@@ -1626,7 +1652,7 @@
             let html = '<h3>Opérations Récurrentes Actives</h3>';
             transactions.forEach(t => {
                 html += `<div class="structure-item">
-                            <span><strong>${t.name}</strong> (${t.amount.toFixed(2)}€/mois)</span>
+                            <span><strong>${t.name}</strong> (${t.amount.toFixed(2)}€/mois) - <em>Type: ${t.type === 'actual' ? 'Réel' : 'Projeté'}</em></span>
                             <div class="structure-actions">
                                 <button class="btn btn-warning" onclick="editRecurrentTransaction('${t.id}')">Modifier</button>
                                 <button class="btn btn-danger" onclick="deleteRecurrentTransaction('${t.id}')">Supprimer</button>
@@ -1640,7 +1666,7 @@
             const name = document.getElementById('recurrentName').value;
             const amount = parseFloat(document.getElementById('recurrentAmount').value);
             if (isNaN(amount)) return alert("Veuillez renseigner un montant valide.");
-            const transactionData = { name, amount, account: document.getElementById('recurrentAccount').value, section: document.getElementById('recurrentSection').value, subsection: document.getElementById('recurrentSubsection').value, startDate: document.getElementById('recurrentStartDate').value, endDate: document.getElementById('recurrentEndDate').value };
+            const transactionData = { name, amount, account: document.getElementById('recurrentAccount').value, section: document.getElementById('recurrentSection').value, subsection: document.getElementById('recurrentSubsection').value, startDate: document.getElementById('recurrentStartDate').value, endDate: document.getElementById('recurrentEndDate').value, type: document.getElementById('recurrentType').value };
             const recurrentList = appData.years[appData.currentYear].recurrentTransactions;
             if (appData.editingRecurrent) {
                 const index = recurrentList.findIndex(t => t.id === appData.editingRecurrent);
@@ -1649,7 +1675,10 @@
                 transactionData.id = 'recurrent_' + Date.now();
                 recurrentList.push(transactionData);
             }
-            clearRecurrentForm(); renderRecurrentList(); generateProjectedFromRecurrent(); renderTable();
+            clearRecurrentForm(); 
+            renderRecurrentList(); 
+            applyRecurrentTransactions(); 
+            renderTable();
         }
         
         function editRecurrentTransaction(id) {
@@ -1663,13 +1692,21 @@
             populateSections('recurrentAccount', 'recurrentSection', 'recurrentSubsection'); document.getElementById('recurrentSection').value = t.section || '';
             populateSubsections('recurrentAccount', 'recurrentSection', 'recurrentSubsection'); document.getElementById('recurrentSubsection').value = t.subsection || '';
             document.getElementById('recurrentStartDate').value = t.startDate; document.getElementById('recurrentEndDate').value = t.endDate;
+            document.getElementById('recurrentType').value = t.type || 'projected';
         }
 
         function deleteRecurrentTransaction(id) {
-            if (confirm("Sûr de vouloir supprimer cette règle ? Les opérations déjà générées resteront.")) {
+            // CORRECTION: Message mis à jour pour être plus clair.
+            if (confirm("Sûr de vouloir supprimer cette règle ? Ceci va aussi supprimer les opérations automatiques associées qui n'ont pas été modifiées manuellement.")) {
                 const list = appData.years[appData.currentYear].recurrentTransactions;
                 const index = list.findIndex(t => t.id === id);
-                if (index > -1) { list.splice(index, 1); renderRecurrentList(); generateProjectedFromRecurrent(); renderTable(); }
+                if (index > -1) { 
+                    list.splice(index, 1); 
+                    renderRecurrentList(); 
+                    // CORRECTION: Appel à la bonne fonction
+                    applyRecurrentTransactions(); 
+                    renderTable(); 
+                }
             }
         }
         
@@ -1678,27 +1715,70 @@
             document.getElementById('recurrentFormTitle').textContent = "Ajouter une Opération Récurrente";
             document.getElementById('addOrUpdateRecurrentButton').textContent = 'Ajouter';
             ['recurrentName', 'recurrentAmount', 'recurrentStartDate', 'recurrentEndDate'].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('recurrentType').value = 'projected';
         }
 
-        function generateProjectedFromRecurrent() {
+        // CORRECTION: Logique de génération des récurrences entièrement revue pour plus de robustesse
+        function applyRecurrentTransactions() {
             const yearData = appData.years[appData.currentYear]; if (!yearData) return;
-            if (yearData.projected) {
-                Object.keys(yearData.projected).forEach(key => { if (yearData.projected[key].autoGenerated) delete yearData.projected[key]; });
-            } else { yearData.projected = {}; }
+
+            // Assurer que les conteneurs existent
+            if (!yearData.projected) yearData.projected = {};
+            if (!yearData.actual) yearData.actual = {};
+
+            // Vider les anciennes opérations automatiques des DEUX types
+            for (const key in yearData.projected) {
+                if (yearData.projected[key].autoGenerated) {
+                    delete yearData.projected[key];
+                }
+            }
+            for (const key in yearData.actual) {
+                if (yearData.actual[key].autoGenerated) {
+                    delete yearData.actual[key];
+                }
+            }
+
             const recurrentList = yearData.recurrentTransactions || [];
             recurrentList.forEach(rule => {
+                const targetType = rule.type || 'projected';
                 const start = rule.startDate ? new Date(rule.startDate + '-02T00:00:00') : null;
                 const end = rule.endDate ? new Date(rule.endDate + '-02T00:00:00') : null;
+                
                 for (let i = 0; i < 12; i++) {
                     const monthDate = new Date(appData.currentYear, i, 15);
                     let isActive = true;
                     if (start && monthDate < start) isActive = false;
                     if (end && monthDate > end) isActive = false;
+
                     if (isActive) {
+                        // Vérifier si une version "réelle" manuelle de cette opération existe déjà
+                        let isRealized = false;
+                        for (const key in yearData.actual) {
+                            const action = yearData.actual[key];
+                            if (action.recurrentSourceId === rule.id && action.months[i] !== 0) {
+                                isRealized = true;
+                                break;
+                            }
+                        }
+
+                        // Ne pas créer d'opération automatique si elle a déjà été réalisée manuellement
+                        if (isRealized) continue;
+
                         const id = `auto_${rule.id}_${i}`;
-                        const newAction = { id, name: rule.name, account: rule.account, section: rule.section, subsection: rule.subsection, months: Array(12).fill(0), autoGenerated: true, recurrentSourceId: rule.id };
+                        const newAction = { 
+                            id, 
+                            name: rule.name, 
+                            account: rule.account, 
+                            section: rule.section, 
+                            subsection: rule.subsection, 
+                            months: Array(12).fill(0), 
+                            autoGenerated: true, 
+                            recurrentSourceId: rule.id,
+                            type: targetType // Ajout du type pour référence facile
+                        };
                         newAction.months[i] = rule.amount;
-                        yearData.projected[id] = newAction;
+                        
+                        yearData[targetType][id] = newAction;
                     }
                 }
             });
