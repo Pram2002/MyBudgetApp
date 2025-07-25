@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mon Budget Sécurisé</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FAF8F1; /* Warm Beige Background */
+            color: #5D4037; /* Dark Brown Text */
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Login Screen */
+        .login-screen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #FFA726, #81C784); /* Orange to Green Gradient */
+        }
+
+        .login-form {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            text-align: center;
+            min-width: 350px;
+        }
+
+        .login-form h1 {
+            color: #F57C00; /* Primary Orange */
+            margin-bottom: 30px;
+            font-weight: 700;
+        }
+
+        .login-form input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #D7CCC8; /* Warm Gray Border */
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .login-form input:focus {
+            outline: none;
+            border-color: #F57C00; /* Primary Orange */
+        }
+
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background: #F57C00; /* Primary Orange */
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin: 5px 0;
+        }
+
+        .login-btn:hover {
+            background: #E65100; /* Darker Orange */
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .file-label {
+            display: inline-block;
+            width: 100%;
+            padding: 12px;
+            background: #81C784; /* Natural Green */
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin: 5px 0;
+            text-align: center;
+        }
+
+        .file-label:hover {
+            background: #66BB6A; /* Darker Green */
+        }
+
+        .login-options {
+            margin: 20px 0;
+            padding: 20px 0;
+            border-top: 1px solid #D7CCC8; /* Warm Gray Border */
+        }
+
+        .login-options h3 {
+            margin-bottom: 15px;
+            color: #555;
+            font-size: 16px;
+        }
+
+        /* Header */
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: #F57C00; /* Primary Orange */
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: #F57C00; /* Primary Orange */
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #E65100; /* Darker Orange */
+        }
+
+        .btn-success {
+            background: #81C784; /* Natural Green */
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #66BB6A; /* Darker Green */
+        }
+
+        .btn-danger {
+            background: #EF5350;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #E53935;
+        }
+
+        .btn-warning {
+            background: #FFA726; /* Amber */
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #FB8C00;
+        }
+
+        /* Year Tabs */
+        .year-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+            padding: 10px 0;
+        }
+
+        .year-tab {
+            padding: 12px 20px;
+            background: white;
+            border: 2px solid #D7CCC8;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: all 0.3s;
+        }
+
+        .year-tab.active {
+            background: #F57C00; /* Primary Orange */
+            color: white;
+            border-color: #F57C00;
+        }
+
+        .year-tab:hover:not(.active) {
+            border-color: #F57C00;
+            background: #fff;
+        }
+
+        /* Main Content */
+        .main-content {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            padding: 20px;
+        }
+
+        /* Financial Table */
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+
+        .financial-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1200px;
+        }
+
+        .financial-table th {
+            background: #F57C00; /* Primary Orange */
+            color: white;
+            padding: 15px 10px;
+            text-align: center;
+            font-weight: 600;
+            border: 1px solid #ddd;
+        }
+
+        .financial-table td {
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            text-align: left;
+            vertical-align: top;
+            font-size: 14px;
+        }
+        
+        .financial-table td:first-child {
+            font-weight: 500;
+            text-align: left;
+        }
+
+        .financial-table tr:nth-child(even) {
+            background: #FFF8E1; /* Light Beige for even rows */
+        }
+
+        .financial-table tr.subsection-row:hover {
+            background: #FFE0B2; /* Light Orange hover */
+        }
+
+        .account-header {
+            background: #FB8C00 !important; /* Lighter Orange */
+            font-weight: 700;
+        }
+
+        .section-header {
+            background: #FFCC80 !important; /* Light Orange */
+            font-weight: 600;
+            text-align: left !important;
+            padding-left: 20px !important;
+            color: #5D4037; /* Dark text for readability */
+        }
+        
+        .action-item {
+            cursor: pointer;
+            padding: 4px 2px;
+            border-radius: 4px;
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .action-item:hover {
+            background-color: #FFE0B2; /* Light Orange hover */
+        }
+        .action-item span:first-child {
+            max-width: 100px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .amount-positive {
+            color: #388E3C;
+            font-weight: 600;
+        }
+
+        .amount-negative {
+            color: #D32F2F;
+            font-weight: 600;
+        }
+        
+        .section-total-row td {
+            background: #FFE0B2 !important; /* Light orange */
+            font-weight: 700;
+            text-align: right;
+            color: #5D4037; /* Dark text for readability */
+        }
+        .section-total-row td:first-child {
+            text-align: left;
+        }
+
+        .balance-row td {
+            background: #FFF3E0 !important; /* Very Light Orange */
+            font-weight: 700;
+            border-top: 2px solid #F57C00 !important;
+            text-align: right;
+        }
+        .balance-row td:first-child {
+            text-align: left;
+        }
+
+        .grand-total-balance-row td {
+            background-color: #FFCC80 !important; /* Light Orange */
+            font-weight: 700;
+            font-size: 16px !important;
+            border-top: 3px solid #FB8C00 !important;
+            text-align: right;
+        }
+        .grand-total-balance-row td:first-child {
+            text-align: left;
+        }
+
+        /* Add Action Form */
+        .add-action-form {
+            background: #FFF8E1; /* Light Beige */
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #D7CCC8;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #5D4037;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #D7CCC8;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #F57C00;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close {
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .close:hover {
+            color: #333;
+        }
+
+        /* Stats */
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        /* Structure Management */
+        .structure-item {
+            background: #FFF8E1;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #F57C00;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .structure-item.account {
+            border-left-color: #F57C00;
+        }
+
+        .structure-item.section {
+            border-left-color: #FB8C00;
+            margin-left: 20px;
+        }
+
+        .structure-item.subsection {
+            border-left-color: #FFCC80;
+            margin-left: 40px;
+        }
+
+        .structure-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .starting-balance-form {
+            background: #FFF3E0;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #F57C00;
+        }
+
+        .balance-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .balance-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #D7CCC8;
+        }
+
+        .balance-item label {
+            font-weight: 600;
+            color: #5D4037;
+        }
+
+        .balance-item input {
+            width: 120px;
+            padding: 8px;
+            border: 2px solid #D7CCC8;
+            border-radius: 6px;
+            text-align: right;
+        }
+
+        .balance-item input:focus {
+            outline: none;
+            border-color: #F57C00;
+        }
+
+        .auto-save-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #81C784;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1001;
+        }
+
+        .auto-save-indicator.show {
+            opacity: 1;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .container { padding: 10px; }
+            .header { flex-direction: column; gap: 10px; }
+            .year-tabs { justify-content: center; }
+            .form-grid { grid-template-columns: 1fr; }
+            .modal-content { width: 95%; margin: 10% auto; padding: 20px; }
+            .login-form { min-width: 300px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="autoSaveIndicator" class="auto-save-indicator">
+        💾 Données Enregistrées
+    </div>
+
+    <div id="loginScreen" class="login-screen">
+        <div class="login-form">
+            <h1>🔒 Mon Budget</h1>
+            <div>
+                <input type="password" id="passwordInput" placeholder="Entrez votre mot de passe" />
+                <button class="login-btn" onclick="login()">Accéder au Registre</button>
+                <p style="margin-top: 10px; font-size: 12px; color: #666;">
+                    Première visite ? Votre mot de passe sera défini automatiquement.
+                </p>
+            </div>
+            <div class="login-options">
+                <h3>Charger des Données Existantes</h3>
+                <input type="file" id="dataFileInput" accept=".json" class="file-input" onchange="loadDataFile()">
+                <label for="dataFileInput" class="file-label">📁 Charger un Fichier de Données</label>
+                <p style="font-size: 12px; color: #666; margin-top: 10px;">
+                    Sélectionnez votre fichier .json sauvegardé.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div id="mainApp" class="hidden">
+        <div class="container">
+            <div class="header">
+                <div class="logo">🔒 Mon Budget</div>
+                <div class="header-actions">
+                    <button class="btn btn-success" onclick="saveDataFile()">💾 Sauvegarder</button>
+                    <button class="btn btn-warning" onclick="exportData()">📄 Exporter CSV</button>
+                    <button class="btn btn-primary" onclick="showStats()">📊 Statistiques</button>
+                    <button class="btn btn-primary" onclick="showStructureManager()">⚙️ Structure</button>
+                    <button class="btn btn-danger" onclick="logout()">🚪 Déconnexion</button>
+                </div>
+            </div>
+
+            <div class="year-tabs" id="yearTabs"></div>
+
+            <div class="main-content">
+                <div class="starting-balance-form">
+                    <h3>💰 Soldes Initiaux des Comptes pour <span id="balanceYear"></span></h3>
+                    <div class="balance-grid" id="balanceGrid"></div>
+                    <div style="margin-top: 15px;">
+                        <button class="btn btn-primary" onclick="saveStartingBalances()">Enregistrer les Soldes</button>
+                    </div>
+                </div>
+
+                <div class="add-action-form" id="addActionForm">
+                    <h3 id="formTitle">Ajouter une Nouvelle Opération</h3>
+                    <div class="form-grid">
+                        <div class="form-group"><label>Nom de l'Opération</label><input type="text" id="actionName" placeholder="Ex: Courses, Restaurant..."></div>
+                        <div class="form-group"><label>Compte</label><select id="actionAccount"></select></div>
+                        <div class="form-group"><label>Section</label><select id="actionSection"></select></div>
+                        <div class="form-group"><label>Sous-section</label><select id="actionSubsection"></select></div>
+                        <div class="form-group"><label>Mois</label><select id="actionMonth"><option value="0">Janvier</option><option value="1">Février</option><option value="2">Mars</option><option value="3">Avril</option><option value="4">Mai</option><option value="5">Juin</option><option value="6">Juillet</option><option value="7">Août</option><option value="8">Septembre</option><option value="9">Octobre</option><option value="10">Novembre</option><option value="11">Décembre</option></select></div>
+                        <div class="form-group"><label>Montant</label><input type="number" id="actionAmount" placeholder="Montant (+ ou -)" step="0.01"></div>
+                        <div class="form-group"><label>Type</label><select id="actionType"><option value="actual">Réel</option><option value="projected">Projeté</option></select></div>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="addOrUpdateButton" class="btn btn-primary" onclick="addAction()">Ajouter l'Opération</button>
+                        <button class="btn btn-danger" id="deleteActionButton" onclick="deleteAction()" style="display: none;">Supprimer l'Opération</button>
+                        <button class="btn" onclick="hideAddActionForm()" style="background: #ccc;">Annuler</button>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-primary" onclick="showAddActionForm()">+ Ajouter Opération</button>
+                    <button class="btn btn-success" onclick="addNewYear()">+ Ajouter Année</button>
+                </div>
+
+                <div class="table-container">
+                    <table class="financial-table" id="financialTable"></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="statsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><h2 id="stats-modal-title">Statistiques Financières</h2><span class="close" onclick="closeModal('statsModal')">×</span></div>
+            <div id="statsContent"></div>
+        </div>
+    </div>
+
+    <div id="structureModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><h2>Gérer la Structure</h2><span class="close" onclick="closeModal('structureModal')">×</span></div>
+            <div id="structureContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- GLOBAL VARIABLES ---
+        let appData = {
+            password: null,
+            years: {},
+            currentYear: new Date().getFullYear(),
+            editingAction: null
+        };
+        const months = ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
+
+        function getCurrentStructure() {
+            if (appData.years[appData.currentYear]) {
+                return appData.years[appData.currentYear].structure;
+            }
+            return null; // Should not happen if init is correct
+        }
+
+        // --- CORE APP ---
+        function init() {
+            if (!appData.years[appData.currentYear]) {
+                appData.years[appData.currentYear] = {
+                    actual: {},
+                    projected: {},
+                    startingBalances: {},
+                    // On définit la structure par défaut ici, seulement si l'année n'existe pas
+                    structure: {
+                        accounts: [
+                            { id: 'account1', name: 'Compte Principal', sections: [
+                                { id: 'income', name: 'Revenus', subsections: [
+                                    { id: 'salary', name: 'Salaire' }
+                                ]},
+                                { id: 'expenses', name: 'Dépenses', subsections: [
+                                    { id: 'rent', name: 'Loyer' },
+                                    { id: 'food', name: 'Nourriture' }
+                                ]}
+                            ]}
+                        ]
+                    }
+                };
+            }
+        }
+        function saveDataFile() { const d = JSON.stringify(appData, null, 2); const b = new Blob([d],{type:'application/json'}); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `mon-budget-sauvegarde-${new Date().toISOString().split('T')[0]}.json`; a.click(); URL.revokeObjectURL(u); showAutoSaveIndicator(); }
+        function loadDataFile() {
+            const f = document.getElementById('dataFileInput').files[0];
+            if (!f) return;
+
+            const r = new FileReader();
+
+            r.onload = (e) => {
+                try {
+                    let d = JSON.parse(e.target.result);
+                    
+                    // On appelle la fonction de migration pour gérer les anciens fichiers
+                    d = migrateData(d); // <-- AJOUTÉ : Étape de migration
+
+                    // On vérifie le format du fichier (l'ancienne clé "structure" n'est plus requise ici)
+                    if (d.password && d.years) { // <-- MODIFIÉ : Condition de validation
+                        const p = prompt('Entrez le mot de passe pour ce fichier de données :');
+                        if (p === d.password) {
+                            appData = d;
+                            showMainApp();
+                            alert('Données chargées avec succès !');
+                        } else {
+                            alert('Mot de passe incorrect.');
+                        }
+                    } else {
+                        alert('Format de fichier de données invalide.');
+                    }
+                } catch (err) {
+                    // Amélioration pour le débogage : on affiche l'erreur dans la console
+                    console.error("Erreur lors de la lecture du fichier :", err);
+                    alert('Erreur lors de la lecture ou de l\'analyse du fichier.');
+                }
+            };
+            
+            r.readAsText(f);
+        }
+        function migrateData(data) {
+            // Si data.structure existe, c'est un ancien format de fichier
+            if (data.structure) {
+                console.log("Migration de l'ancien format de données en cours...");
+                Object.keys(data.years).forEach(year => {
+                    // Si une année n'a pas sa propre structure, on lui copie la structure globale
+                    if (!data.years[year].structure) {
+                        // Copie en profondeur pour éviter les références
+                        data.years[year].structure = JSON.parse(JSON.stringify(data.structure));
+                    }
+                });
+                // On supprime l'ancienne clé globale
+                delete data.structure;
+            }
+            Object.keys(data.years).forEach(year => {
+                if (data.years[year].structure) {
+                    data.years[year].structure = migrateStructureToArrayFormat(data.years[year].structure);
+                }
+            });
+            return data;
+        }
+        function migrateStructureToArrayFormat(structure) {
+            if (!structure || Array.isArray(structure.accounts)) {
+                return structure; // Déjà au bon format ou structure invalide
+            }
+
+            console.log("Migration de la structure vers un format de tableau...");
+            const newAccounts = Object.keys(structure.accounts).map(accId => {
+                const account = structure.accounts[accId];
+                const newSections = Object.keys(account.sections).map(secId => {
+                    const section = account.sections[secId];
+                    const newSubsections = Object.keys(section.subsections).map(subId => {
+                        return { id: subId, name: section.subsections[subId].name };
+                    });
+                    return { id: secId, name: section.name, subsections: newSubsections };
+                });
+                return { id: accId, name: account.name, sections: newSections };
+            });
+
+            return { accounts: newAccounts };
+        }
+        function showAutoSaveIndicator() { const i = document.getElementById('autoSaveIndicator'); i.classList.add('show'); setTimeout(() => i.classList.remove('show'), 2000); }
+        function login() { const p = document.getElementById('passwordInput').value; if (!p) return alert('Veuillez entrer un mot de passe'); if (!appData.password) { appData.password = p; showMainApp(); renderStartingBalances(); alert('Mot de passe défini ! Pensez à sauvegarder votre fichier régulièrement.'); } else if (appData.password === p) { showMainApp(); } else { alert('Mot de passe incorrect'); } }
+        function showMainApp() { document.getElementById('loginScreen').classList.add('hidden'); document.getElementById('mainApp').classList.remove('hidden'); renderYearTabs(); renderTable(); renderStartingBalances(); populateFormDropdowns(); }
+        function logout() { if (confirm('Voulez-vous sauvegarder vos données avant de vous déconnecter ?')) { saveDataFile(); } document.getElementById('loginScreen').classList.remove('hidden'); document.getElementById('mainApp').classList.add('hidden'); document.getElementById('passwordInput').value = ''; document.getElementById('dataFileInput').value = ''; }
+        function exportData() {
+            let c = "Compte,Section,Sous-section,Opération,Type,Janv,Févr,Mars,Avr,Mai,Juin,Juil,Août,Sept,Oct,Nov,Déc\n";
+            const y = appData.years[appData.currentYear];
+            if (y) {
+                ['actual', 'projected'].forEach(t => {
+                    const d = y[t];
+                    if (d) {
+                        Object.values(d).forEach(a => {
+                            const account = getCurrentStructure()?.accounts.find(acc => acc.id === a.account);
+                            const section = account?.sections.find(sec => sec.id === a.section);
+                            const subsection = section?.subsections.find(sub => sub.id === a.subsection);
+
+                            const an = account?.name || a.account;
+                            const sn = section?.name || a.section;
+                            const ssn = subsection?.name || a.subsection;
+                            c += `"${an}","${sn}","${ssn}","${a.name}","${t}",${a.months.map(v => v || 0).join(',')}\n`;
+                        });
+                    }
+                });
+            }
+            const b = new Blob([c],{type:'text/csv;charset=utf-8;'});
+            const u = URL.createObjectURL(b);
+            const a = document.createElement('a');
+            a.href = u;
+            a.download = `mon-budget-export-${appData.currentYear}.csv`;
+            a.click();
+            URL.revokeObjectURL(u);
+        }
+        
+        // --- UI & TABLE RENDERING ---
+        function renderYearTabs() { const c = document.getElementById('yearTabs'); c.innerHTML = ''; const y = Object.keys(appData.years).sort((a,b)=>parseInt(b)-parseInt(a)); y.forEach(y => { const t = document.createElement('div'); t.className = `year-tab ${y == appData.currentYear ? 'active' : ''}`; t.textContent = y; t.onclick = () => switchYear(y); c.appendChild(t); }); }
+        function switchYear(y) { appData.currentYear = parseInt(y); renderYearTabs(); renderTable(); renderStartingBalances(); }
+        function addNewYear() {
+            const y = prompt("Entrez l'année (AAAA) :");
+            if (y && /^\d{4}$/.test(y)) {
+                const i = parseInt(y);
+                if (!appData.years[i]) {
+                    // Copie en profondeur de la structure de l'année actuelle vers la nouvelle
+                    const currentStructure = getCurrentStructure();
+                    appData.years[i] = {
+                        actual: {},
+                        projected: {},
+                        startingBalances: {},
+                        structure: JSON.parse(JSON.stringify(currentStructure)) // DEEP COPY
+                    };
+                    appData.currentYear = i;
+                    renderYearTabs();
+                    renderTable();
+                    renderStartingBalances();
+                }
+            }
+        }
+        function renderTable() {
+            const table = document.getElementById('financialTable');
+            table.innerHTML = '';
+            const headerRow = document.createElement('tr');
+            headerRow.innerHTML = '<th>Catégorie</th>' + months.map(m => `<th>${m}</th>`).join('');
+            table.appendChild(headerRow);
+            const allActions = getActionsForCurrentYear();
+            const structure = getCurrentStructure();
+            if (!structure || !structure.accounts) return;
+
+            structure.accounts.forEach(account => {
+                const accountRow = document.createElement('tr');
+                accountRow.innerHTML = `<th class="account-header" colspan="13">${account.name}</th>`;
+                table.appendChild(accountRow);
+                account.sections.forEach(section => {
+                    const sectionRow = document.createElement('tr');
+                    sectionRow.innerHTML = `<th class="section-header" colspan="13">${section.name}</th>`;
+                    table.appendChild(sectionRow);
+                    section.subsections.forEach(subsection => {
+                        renderSubsectionRow(table, account.id, section.id, subsection.id, subsection, allActions);
+                    });
+                    renderSectionTotalRow(table, account.id, section.id, section, allActions);
+                });
+                renderAccountBalanceRow(table, account.id, account, allActions);
+            });
+            renderGrandTotalBalanceRow(table, allActions);
+        }
+        function getActionsForCurrentYear() { const d = appData.years[appData.currentYear] || { actual: {}, projected: {} }; const a = []; ['actual', 'projected'].forEach(t => { Object.values(d[t] || {}).forEach(ac => a.push({ ...ac, type: t })); }); return a; }
+        function renderSubsectionRow(table, accountId, sectionId, subsectionId, subsection, allActions) {
+            const row = document.createElement('tr'); row.classList.add('subsection-row'); let html = `<td>${subsection.name}</td>`;
+            for (let i = 0; i < 12; i++) {
+                const actions = allActions.filter(a => a.account === accountId && a.section === sectionId && a.subsection === subsectionId && a.months[i] !== 0);
+                html += `<td>${actions.map(a => `<div class="action-item" onclick="editAction('${a.id}', '${a.type}')"><span>${a.name}${a.type==='projected'?' (P)':''}</span><span class="${a.months[i]>=0?'amount-positive':'amount-negative'}">${a.months[i].toFixed(2)}€</span></div>`).join('')}</td>`;
+            }
+            row.innerHTML = html; table.appendChild(row);
+        }
+        function renderSectionTotalRow(table, accountId, sectionId, section, allActions) {
+            const row = document.createElement('tr'); row.className = 'section-total-row'; let html = `<td><strong>Total ${section.name}</strong></td>`;
+            for (let i = 0; i < 12; i++) { const t = allActions.filter(a => a.account === accountId && a.section === sectionId && a.months[i] !== 0).reduce((s, a) => s + a.months[i], 0); html += `<td class="${t >= 0 ? 'amount-positive' : 'amount-negative'}">${t.toFixed(2)}€</td>`; }
+            row.innerHTML = html; table.appendChild(row);
+        }
+        function renderAccountBalanceRow(table, accountId, account, allActions) {
+            const row = document.createElement('tr'); row.className = 'balance-row'; let net = Array(12).fill(0);
+            allActions.forEach(a => { if (a.account === accountId) a.months.forEach((amt, i) => { if (amt) net[i] += amt; }); });
+            let bal = Array(12).fill(0); bal[0] = getStartingBalance(accountId) + net[0];
+            for(let i=1; i<12; i++) bal[i] = bal[i-1] + net[i];
+            let html = `<td><strong>Solde ${account.name}</strong></td>`; bal.forEach(b => html += `<td class="${b>=0?'amount-positive':'amount-negative'}">${b.toFixed(2)}€</td>`);
+            row.innerHTML = html; table.appendChild(row);
+        }
+        function renderGrandTotalBalanceRow(table, allActions) {
+            const row = document.createElement('tr'); row.className = 'grand-total-balance-row'; let totalBal = Array(12).fill(0);
+            Object.keys(getCurrentStructure().accounts).forEach(id => {
+                let net = Array(12).fill(0); allActions.forEach(a => { if (a.account === id) a.months.forEach((amt, i) => net[i] += amt); });
+                let accBal = Array(12).fill(0); accBal[0] = getStartingBalance(id) + net[0];
+                for(let i=1; i<12; i++) accBal[i] = accBal[i-1] + net[i];
+                totalBal.forEach((_, i) => totalBal[i] += accBal[i]);
+            });
+            let html = `<td><strong>Solde Total</strong></td>`; totalBal.forEach(b => html += `<td class="${b>=0?'amount-positive':'amount-negative'}">${b.toFixed(2)}€</td>`);
+            row.innerHTML = html; table.appendChild(row);
+        }
+        
+        // --- FORMS & DATA MANIPULATION ---
+        function renderStartingBalances() {
+            const g = document.getElementById('balanceGrid');
+            document.getElementById('balanceYear').textContent = appData.currentYear;
+            g.innerHTML = '';
+            const accounts = getCurrentStructure()?.accounts || [];
+            accounts.forEach(a => {
+                const i = document.createElement('div');
+                i.className = 'balance-item';
+                i.innerHTML = `<label>${a.name}</label><input type="number" value="${getStartingBalance(a.id)}" onchange="updateStartingBalance('${a.id}', this.value)">`;
+                g.appendChild(i);
+            });
+        }
+        function getStartingBalance(id) { if (!appData.years[appData.currentYear].startingBalances) appData.years[appData.currentYear].startingBalances = {}; return appData.years[appData.currentYear].startingBalances[id] || 0; }
+        function updateStartingBalance(id, value) { appData.years[appData.currentYear].startingBalances[id] = parseFloat(value) || 0; renderTable(); showAutoSaveIndicator(); }
+        function saveStartingBalances() { alert('Soldes initiaux enregistrés !'); renderTable(); showAutoSaveIndicator(); }
+        function showAddActionForm() { document.getElementById('addActionForm').style.display = 'block'; document.getElementById('formTitle').textContent = 'Ajouter une Opération'; document.getElementById('addOrUpdateButton').textContent = 'Ajouter'; document.getElementById('deleteActionButton').style.display = 'none'; populateFormDropdowns(); clearActionForm(); }
+        function hideAddActionForm() { document.getElementById('addActionForm').style.display = 'none'; appData.editingAction = null; clearActionForm(); }
+        function clearActionForm() { ['actionName', 'actionAmount'].forEach(id => document.getElementById(id).value = ''); document.getElementById('actionMonth').value = new Date().getMonth(); document.getElementById('actionType').value = 'actual'; ['actionAccount', 'actionSection', 'actionSubsection'].forEach(id => { const s = document.getElementById(id); if (s.options.length > 0) s.selectedIndex = 0; }); }
+        function populateFormDropdowns() {
+            const a = document.getElementById('actionAccount');
+            a.innerHTML = '';
+            const accounts = getCurrentStructure()?.accounts || [];
+            accounts.forEach(acc => {
+                const o = document.createElement('option');
+                o.value = acc.id;
+                o.textContent = acc.name;
+                a.appendChild(o);
+            });
+            populateSections();
+            a.onchange = populateSections;
+        }
+        function populateSections() {
+            const aId = document.getElementById('actionAccount').value;
+            const s = document.getElementById('actionSection');
+            s.innerHTML = '';
+            const account = getCurrentStructure()?.accounts.find(acc => acc.id === aId);
+            if (account) {
+                account.sections.forEach(sec => {
+                    const o = document.createElement('option');
+                    o.value = sec.id;
+                    o.textContent = sec.name;
+                    s.appendChild(o);
+                });
+            }
+            populateSubsections();
+            s.onchange = populateSubsections;
+        }
+        function populateSubsections() {
+            const aId = document.getElementById('actionAccount').value;
+            const sId = document.getElementById('actionSection').value;
+            const ss = document.getElementById('actionSubsection');
+            ss.innerHTML = '';
+            const account = getCurrentStructure()?.accounts.find(acc => acc.id === aId);
+            if (account) {
+                const section = account.sections.find(sec => sec.id === sId);
+                if (section) {
+                    section.subsections.forEach(sub => {
+                        const o = document.createElement('option');
+                        o.value = sub.id;
+                        o.textContent = sub.name;
+                        ss.appendChild(o);
+                    });
+                }
+            }
+        }
+        function addAction() { const n = document.getElementById('actionName').value, a = document.getElementById('actionAccount').value, s = document.getElementById('actionSection').value, ss = document.getElementById('actionSubsection').value, m = parseInt(document.getElementById('actionMonth').value), amt = parseFloat(document.getElementById('actionAmount').value), t = document.getElementById('actionType').value; if (!a || !s || !ss || isNaN(amt)) return alert('Veuillez remplir les champs obligatoires : Compte, Section, Sous-section et Montant.'); if (!appData.years[appData.currentYear][t]) appData.years[appData.currentYear][t] = {}; if (appData.editingAction) { const act = appData.years[appData.currentYear][appData.editingAction.type][appData.editingAction.id]; act.name = n; act.account = a; act.section = s; act.subsection = ss; act.months.fill(0); act.months[m] = amt; } else { const id = 'action_' + Date.now(); appData.years[appData.currentYear][t][id] = { id: id, name: n, account: a, section: s, subsection: ss, months: Array(12).fill(0) }; appData.years[appData.currentYear][t][id].months[m] = amt; } renderTable(); hideAddActionForm(); showAutoSaveIndicator(); }
+        function editAction(id, type) { const a = appData.years[appData.currentYear][type][id]; if (!a) return; showAddActionForm(); document.getElementById('formTitle').textContent = "Modifier l'Opération"; document.getElementById('addOrUpdateButton').textContent = 'Mettre à Jour'; document.getElementById('deleteActionButton').style.display = 'inline-block'; let m = a.months.findIndex(v => v !== 0); if (m === -1) m = 0; document.getElementById('actionName').value = a.name; document.getElementById('actionAccount').value = a.account; populateSections(); document.getElementById('actionSection').value = a.section; populateSubsections(); document.getElementById('actionSubsection').value = a.subsection; document.getElementById('actionMonth').value = m; document.getElementById('actionAmount').value = a.months[m] || 0; document.getElementById('actionType').value = type; appData.editingAction = { id: id, type: type }; }
+        function deleteAction() { if (!appData.editingAction) return; if (confirm('Êtes-vous sûr(e) ?')) { const { id, type } = appData.editingAction; delete appData.years[appData.currentYear][type][id]; renderTable(); hideAddActionForm(); showAutoSaveIndicator(); } }
+
+        // --- STATS MODAL ---
+        function showStats() { const m = document.getElementById('statsModal'); document.getElementById('stats-modal-title').textContent = `Statistiques pour ${appData.currentYear}`; m.querySelector('#statsContent').innerHTML = generateStatsContent(); m.style.display = 'block'; setTimeout(createCharts, 150); }
+        function generateStatsContent() {
+            const allActions = getActionsForCurrentYear();
+            let totalIncome = 0, totalExpenses = 0;
+            allActions.forEach(a => { const t = a.months.reduce((s, v) => s + v, 0); if (t >= 0) totalIncome += t; else totalExpenses += Math.abs(t); });
+            let finalTotalBalance = 0;
+            Object.keys(getCurrentStructure().accounts).forEach(id => { let bal = getStartingBalance(id); allActions.forEach(a => { if (a.account === id) bal += a.months.reduce((s,v) => s+v, 0); }); finalTotalBalance += bal; });
+            const netSavings = finalTotalBalance + totalIncome - totalExpenses;
+            return `
+                <div style="margin-bottom: 20px;"><button class="btn btn-primary" onclick="downloadStatsPNG()">🖼️ Télécharger l'Image</button></div>
+                <div id="statsExportArea">
+                    <div class="stats-container"><div class="stat-card"><div class="stat-value amount-positive">${totalIncome.toFixed(2)}€</div><div class="stat-label">Total des Revenus</div></div><div class="stat-card"><div class="stat-value amount-negative">${totalExpenses.toFixed(2)}€</div><div class="stat-label">Total des Dépenses</div></div><div class="stat-card"><div class="stat-value ${netSavings >= 0 ? 'amount-positive' : 'amount-negative'}">${netSavings.toFixed(2)}€</div><div class="stat-label">Épargne Nette</div></div></div>
+                    <div class="chart-container"><h3>Aperçu du Solde Total</h3><canvas id="balanceOverviewChart"></canvas></div>
+                    <div class="chart-container"><h3>Revenus vs Dépenses par Mois</h3><canvas id="incomeExpensesChart"></canvas></div>
+                </div>`;
+        }
+        function createCharts() {
+            const allActions = getActionsForCurrentYear();
+            let totalBalanceData = Array(12).fill(0);
+            Object.keys(getCurrentStructure().accounts).forEach(id => {
+                let monthlyNet = Array(12).fill(0); allActions.forEach(a => { if (a.account === id) a.months.forEach((amt, i) => monthlyNet[i] += amt); });
+                let cumulative = Array(12).fill(0); cumulative[0] = getStartingBalance(id) + monthlyNet[0];
+                for (let i = 1; i < 12; i++) cumulative[i] = cumulative[i - 1] + monthlyNet[i];
+                totalBalanceData.forEach((_, i) => totalBalanceData[i] += cumulative[i]);
+            });
+            const balCtx = document.getElementById('balanceOverviewChart');
+            if (balCtx) { const ex = Chart.getChart(balCtx); if (ex) ex.destroy(); new Chart(balCtx, { type: 'line', data: { labels: months, datasets: [{ label: 'Solde Total', data: totalBalanceData, borderColor: '#F57C00', backgroundColor: 'rgba(245, 124, 0, 0.2)', tension: 0.4, fill: true }] }, options: { responsive: true, animation: false, scales: { y: { ticks: { callback: v => v.toFixed(0) + '€' } } } } }); }
+            let monthlyIncExp = Array(12).fill(0).map(() => ({ income: 0, expenses: 0 }));
+            allActions.forEach(a => { a.months.forEach((amt, i) => { if (amt) { if (amt > 0) monthlyIncExp[i].income += amt; else monthlyIncExp[i].expenses += Math.abs(amt); } }); });
+            const incExpCtx = document.getElementById('incomeExpensesChart');
+            if (incExpCtx) { const ex = Chart.getChart(incExpCtx); if (ex) ex.destroy(); new Chart(incExpCtx, { type: 'bar', data: { labels: months, datasets: [{ label: 'Revenus', data: monthlyIncExp.map(m => m.income), backgroundColor: '#81C784' }, { label: 'Dépenses', data: monthlyIncExp.map(m => m.expenses), backgroundColor: '#EF5350' }] }, options: { responsive: true, animation: false, scales: { y: { beginAtZero: true, ticks: { callback: v => v.toFixed(0) + '€' } } } } }); }
+        }
+        function downloadStatsPNG() {
+            const exportArea = document.getElementById('statsExportArea');
+            html2canvas(exportArea, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const a = document.createElement('a');
+                a.href = imgData;
+                a.download = `statistiques-financieres-${appData.currentYear}.png`;
+                a.click();
+            });
+        }
+
+        // --- STRUCTURE MANAGEMENT ---
+        function showStructureManager() { const m = document.getElementById('structureModal'); const c = document.getElementById('structureContent'); c.innerHTML = generateStructureContent(); m.style.display = 'block'; }
+        function generateStructureContent() {
+            let h = '<div style="margin-bottom: 20px;"><button class="btn btn-primary" onclick="addNewAccount()">+ Ajouter Compte</button></div>';
+            const accounts = getCurrentStructure().accounts;
+            accounts.forEach((account, accIndex) => {
+                const upDisabled = accIndex === 0 ? 'disabled' : '';
+                const downDisabled = accIndex === accounts.length - 1 ? 'disabled' : '';
+                h += `<div class="structure-item account">
+                        <span><strong>${account.name}</strong></span>
+                        <div class="structure-actions">
+                            <button class="btn" ${upDisabled} onclick="moveStructureItem('account', 'up', { accountId: '${account.id}' })">▲</button>
+                            <button class="btn" ${downDisabled} onclick="moveStructureItem('account', 'down', { accountId: '${account.id}' })">▼</button>
+                            <button class="btn btn-primary" onclick="addNewSection('${account.id}')">+ Section</button>
+                            <button class="btn btn-warning" onclick="editAccount('${account.id}')">Modifier</button>
+                            <button class="btn btn-danger" onclick="deleteAccount('${account.id}')">Supprimer</button>
+                        </div>
+                    </div>`;
+                account.sections.forEach((section, secIndex) => {
+                    const upSecDisabled = secIndex === 0 ? 'disabled' : '';
+                    const downSecDisabled = secIndex === account.sections.length - 1 ? 'disabled' : '';
+                    h += `<div class="structure-item section">
+                            <span>${section.name}</span>
+                            <div class="structure-actions">
+                                <button class="btn" ${upSecDisabled} onclick="moveStructureItem('section', 'up', { accountId: '${account.id}', sectionId: '${section.id}' })">▲</button>
+                                <button class="btn" ${downSecDisabled} onclick="moveStructureItem('section', 'down', { accountId: '${account.id}', sectionId: '${section.id}' })">▼</button>
+                                <button class="btn btn-primary" onclick="addNewSubsection('${account.id}', '${section.id}')">+ Sous-section</button>
+                                <button class="btn btn-warning" onclick="editSection('${account.id}', '${section.id}')">Modifier</button>
+                                <button class="btn btn-danger" onclick="deleteSection('${account.id}', '${section.id}')">Supprimer</button>
+                            </div>
+                        </div>`;
+                    section.subsections.forEach((subsection, subIndex) => {
+                        const upSubDisabled = subIndex === 0 ? 'disabled' : '';
+                        const downSubDisabled = subIndex === section.subsections.length - 1 ? 'disabled' : '';
+                        h += `<div class="structure-item subsection">
+                                <span>${subsection.name}</span>
+                                <div class="structure-actions">
+                                    <button class="btn" ${upSubDisabled} onclick="moveStructureItem('subsection', 'up', { accountId: '${account.id}', sectionId: '${section.id}', subsectionId: '${subsection.id}' })">▲</button>
+                                    <button class="btn" ${downSubDisabled} onclick="moveStructureItem('subsection', 'down', { accountId: '${account.id}', sectionId: '${section.id}', subsectionId: '${subsection.id}' })">▼</button>
+                                    <button class="btn btn-warning" onclick="editSubsection('${account.id}', '${section.id}', '${subsection.id}')">Modifier</button>
+                                    <button class="btn btn-danger" onclick="deleteSubsection('${account.id}', '${section.id}', '${subsection.id}')">Supprimer</button>
+                                </div>
+                            </div>`;
+                    });
+                });
+            });
+            return h;
+        }
+        function addNewAccount() {
+            const n = prompt("Entrez le nom du nouveau compte :");
+            if (n) {
+                const i = 'account_' + Date.now();
+                getCurrentStructure().accounts.push({ id: i, name: n, sections: [] });
+                showStructureManager();
+                populateFormDropdowns();
+                renderStartingBalances();
+                renderTable();
+            }
+        }
+        function addNewSection(accountId) {
+            const n = prompt("Entrez le nom de la nouvelle section :");
+            if (n) {
+                const account = getCurrentStructure().accounts.find(a => a.id === accountId);
+                if (account) {
+                    const i = 'section_' + Date.now();
+                    account.sections.push({ id: i, name: n, subsections: [] });
+                    showStructureManager();
+                    populateFormDropdowns();
+                    renderTable();
+                }
+            }
+        }
+        function addNewSubsection(accountId, sectionId) {
+            const e = prompt("Entrez le nom de la nouvelle sous-section :");
+            if (e) {
+                const account = getCurrentStructure().accounts.find(a => a.id === accountId);
+                if (account) {
+                    const section = account.sections.find(s => s.id === sectionId);
+                    if (section) {
+                        const i = 'subsection_' + Date.now();
+                        section.subsections.push({ id: i, name: e });
+                        showStructureManager();
+                        populateFormDropdowns();
+                        renderTable();
+                    }
+                }
+            }
+        }
+        function editAccount(accountId) {
+            const account = getCurrentStructure().accounts.find(a => a.id === accountId);
+            if (!account) return;
+            const e = prompt("Modifier le nom du compte :", account.name);
+            if (e && e !== account.name) {
+                account.name = e;
+                showStructureManager();
+                populateFormDropdowns();
+                renderStartingBalances();
+                renderTable();
+            }
+        }
+        function editSection(accountId, sectionId) {
+            const account = getCurrentStructure().accounts.find(a => a.id === accountId);
+            if (!account) return;
+            const section = account.sections.find(s => s.id === sectionId);
+            if (!section) return;
+            const o = prompt("Modifier le nom de la section :", section.name);
+            if (o && o !== section.name) {
+                section.name = o;
+                showStructureManager();
+                populateFormDropdowns();
+                renderTable();
+            }
+        }
+        function editSubsection(accountId, sectionId, subsectionId) {
+            const account = getCurrentStructure().accounts.find(a => a.id === accountId);
+            if (!account) return;
+            const section = account.sections.find(s => s.id === sectionId);
+            if (!section) return;
+            const subsection = section.subsections.find(ss => ss.id === subsectionId);
+            if (!subsection) return;
+            const s = prompt("Modifier le nom de la sous-section :", subsection.name);
+            if (s && s !== subsection.name) {
+                subsection.name = s;
+                showStructureManager();
+                populateFormDropdowns();
+                renderTable();
+            }
+        }
+        function deleteAccount(accountId) {
+            if (confirm("Êtes-vous sûr(e) ? Ceci supprimera le compte et toutes ses données.")) {
+                const accounts = getCurrentStructure().accounts;
+                const index = accounts.findIndex(a => a.id === accountId);
+                if (index > -1) {
+                    accounts.splice(index, 1);
+                    showStructureManager();
+                    populateFormDropdowns();
+                    renderStartingBalances();
+                    renderTable();
+                }
+            }
+        }
+        function deleteSection(accountId, sectionId) {
+            if (confirm("Êtes-vous sûr(e) ? Ceci supprimera la section et toutes ses données.")) {
+                const account = getCurrentStructure().accounts.find(a => a.id === accountId);
+                if (account) {
+                    const index = account.sections.findIndex(s => s.id === sectionId);
+                    if (index > -1) {
+                        account.sections.splice(index, 1);
+                        showStructureManager();
+                        populateFormDropdowns();
+                        renderTable();
+                    }
+                }
+            }
+        }
+        function deleteSubsection(accountId, sectionId, subsectionId) {
+            if (confirm("Êtes-vous sûr(e) ? Ceci supprimera la sous-section et toutes ses données.")) {
+                const account = getCurrentStructure().accounts.find(a => a.id === accountId);
+                if (account) {
+                    const section = account.sections.find(s => s.id === sectionId);
+                    if (section) {
+                        const index = section.subsections.findIndex(ss => ss.id === subsectionId);
+                        if (index > -1) {
+                            section.subsections.splice(index, 1);
+                            showStructureManager();
+                            populateFormDropdowns();
+                            renderTable();
+                        }
+                    }
+                }
+            }
+        }
+        function moveStructureItem(level, direction, ids) {
+            const structure = getCurrentStructure();
+            let list;
+            let itemIndex;
+
+            if (level === 'account') {
+                list = structure.accounts;
+                itemIndex = list.findIndex(a => a.id === ids.accountId);
+            } else if (level === 'section') {
+                const account = structure.accounts.find(a => a.id === ids.accountId);
+                list = account.sections;
+                itemIndex = list.findIndex(s => s.id === ids.sectionId);
+            } else if (level === 'subsection') {
+                const account = structure.accounts.find(a => a.id === ids.accountId);
+                const section = account.sections.find(s => s.id === ids.sectionId);
+                list = section.subsections;
+                itemIndex = list.findIndex(ss => ss.id === ids.subsectionId);
+            }
+
+            if (itemIndex === -1) return;
+
+            const newIndex = direction === 'up' ? itemIndex - 1 : itemIndex + 1;
+            if (newIndex < 0 || newIndex >= list.length) return;
+
+            // Déplacer l'élément
+            const [item] = list.splice(itemIndex, 1);
+            list.splice(newIndex, 0, item);
+
+            showStructureManager(); // Rafraîchir la modale
+            renderTable(); // Mettre à jour le tableau principal
+            showAutoSaveIndicator();
+        }
+
+        // --- MODAL CONTROLS ---
+        function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
+        window.onclick = function(event) { document.querySelectorAll('.modal').forEach(m => { if (event.target === m) m.style.display = 'none'; }); }
+        
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
