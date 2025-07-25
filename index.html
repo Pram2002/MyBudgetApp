@@ -182,6 +182,15 @@
         .btn-danger:hover {
             background: #E53935;
         }
+        
+        .btn-secondary {
+            background: #B0BEC5; /* Blue Grey */
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #78909C;
+        }
+
 
         .btn-warning {
             background: #FFA726; /* Amber */
@@ -263,6 +272,7 @@
         .financial-table td:first-child {
             font-weight: 500;
             text-align: left;
+            padding-left: 15px; /* Indent cell content */
         }
 
         .financial-table tr:nth-child(even) {
@@ -284,6 +294,12 @@
             text-align: left !important;
             padding-left: 20px !important;
             color: #5D4037; /* Dark text for readability */
+        }
+
+        .financial-table td.category-cell-no-section {
+            padding-left: 30px !important;
+            font-style: italic;
+            color: #777;
         }
         
         .action-item {
@@ -346,7 +362,7 @@
         }
 
         /* Add Action Form */
-        .add-action-form {
+        .add-action-form, .transfer-form {
             background: #FFF8E1; /* Light Beige */
             padding: 20px;
             border-radius: 10px;
@@ -457,6 +473,21 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.08);
             margin-bottom: 20px;
         }
+        
+        /* Specific styling for the stats table */
+        #statsModal .financial-table {
+            min-width: 0; /* Override min-width for the modal */
+        }
+        #statsModal .financial-table th, #statsModal .financial-table td {
+             text-align: center;
+             padding: 12px 8px;
+        }
+        #statsModal .financial-table td:last-child {
+            font-style: italic;
+            color: #555;
+            font-size: 13px;
+        }
+
 
         /* Structure Management */
         .structure-item {
@@ -615,7 +646,7 @@
                     </div>
                 </div>
 
-                <div class="add-action-form" id="addActionForm">
+                <div class="add-action-form" id="addActionForm" style="display: none;">
                     <h3 id="formTitle">Ajouter une Nouvelle Opération</h3>
                     <div class="form-grid">
                         <div class="form-group"><label>Nom de l'Opération</label><input type="text" id="actionName" placeholder="Ex: Courses, Restaurant..."></div>
@@ -633,9 +664,13 @@
                     </div>
                 </div>
 
-                <div style="margin-bottom: 20px;">
+                <div style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px;">
                     <button class="btn btn-primary" onclick="showAddActionForm()">+ Ajouter Opération</button>
+                    <button class="btn btn-primary" onclick="showTransferModal()" style="background-color: #5C6BC0;">Virement Inter-compte</button>
                     <button class="btn btn-success" onclick="addNewYear()">+ Ajouter Année</button>
+                    <button class="btn btn-danger" onclick="deleteCurrentYear()">- Supprimer Année</button>
+                    <button class="btn btn-secondary" onclick="collapseAll()">Tout Réduire</button>
+                    <button class="btn btn-secondary" onclick="expandAll()">Tout Développer</button>
                 </div>
 
                 <div class="table-container">
@@ -660,6 +695,25 @@
         </div>
     </div>
 
+    <div id="transferModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header"><h2>Effectuer un Virement Inter-compte</h2><span class="close" onclick="closeModal('transferModal')">×</span></div>
+            <div class="transfer-form">
+                <div class="form-grid">
+                    <div class="form-group"><label>Nom du virement</label><input type="text" id="transferName" placeholder="Ex: Épargne mensuelle"></div>
+                    <div class="form-group"><label>Compte à Débiter</label><select id="transferSourceAccount"></select></div>
+                    <div class="form-group"><label>Compte à Créditer</label><select id="transferDestAccount"></select></div>
+                    <div class="form-group"><label>Mois</label><select id="transferMonth"><option value="0">Janvier</option><option value="1">Février</option><option value="2">Mars</option><option value="3">Avril</option><option value="4">Mai</option><option value="5">Juin</option><option value="6">Juillet</option><option value="7">Août</option><option value="8">Septembre</option><option value="9">Octobre</option><option value="10">Novembre</option><option value="11">Décembre</option></select></div>
+                    <div class="form-group"><label>Somme</label><input type="number" id="transferAmount" placeholder="Montant du virement" step="0.01"></div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-primary" onclick="addTransfer()">Effectuer le Virement</button>
+                    <button class="btn" onclick="closeModal('transferModal')" style="background: #ccc;">Annuler</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // --- GLOBAL VARIABLES ---
         let appData = {
@@ -668,13 +722,25 @@
             currentYear: new Date().getFullYear(),
             editingAction: null
         };
+        let uiState = {
+            collapsed: {} 
+        };
+        let structureUiState = {
+            collapsed: {}
+        };
         const months = ['Janv', 'Févr', 'Mars', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sept', 'Oct', 'Nov', 'Déc'];
+        const VIREMENT_SECTION_ID = 'internal_transfers';
+        const VIREMENT_SECTION_NAME = 'Virements Inter-comptes';
 
         function getCurrentStructure() {
             if (appData.years[appData.currentYear]) {
                 return appData.years[appData.currentYear].structure;
             }
-            return null; // Should not happen if init is correct
+            return null;
+        }
+
+        function resetUiState() {
+            uiState.collapsed = {};
         }
 
         // --- CORE APP ---
@@ -684,17 +750,11 @@
                     actual: {},
                     projected: {},
                     startingBalances: {},
-                    // On définit la structure par défaut ici, seulement si l'année n'existe pas
                     structure: {
                         accounts: [
                             { id: 'account1', name: 'Compte Principal', sections: [
-                                { id: 'income', name: 'Revenus', subsections: [
-                                    { id: 'salary', name: 'Salaire' }
-                                ]},
-                                { id: 'expenses', name: 'Dépenses', subsections: [
-                                    { id: 'rent', name: 'Loyer' },
-                                    { id: 'food', name: 'Nourriture' }
-                                ]}
+                                { id: 'income', name: 'Revenus', subsections: [ { id: 'salary', name: 'Salaire' } ]},
+                                { id: 'expenses', name: 'Dépenses', subsections: [ { id: 'rent', name: 'Loyer' }, { id: 'food', name: 'Nourriture' } ]}
                             ]}
                         ]
                     }
@@ -705,135 +765,105 @@
         function loadDataFile() {
             const f = document.getElementById('dataFileInput').files[0];
             if (!f) return;
-
             const r = new FileReader();
-
             r.onload = (e) => {
                 try {
                     let d = JSON.parse(e.target.result);
-                    
-                    // On appelle la fonction de migration pour gérer les anciens fichiers
-                    d = migrateData(d); // <-- AJOUTÉ : Étape de migration
-
-                    // On vérifie le format du fichier (l'ancienne clé "structure" n'est plus requise ici)
-                    if (d.password && d.years) { // <-- MODIFIÉ : Condition de validation
+                    d = migrateData(d);
+                    if (d.password && d.years) {
                         const p = prompt('Entrez le mot de passe pour ce fichier de données :');
-                        if (p === d.password) {
-                            appData = d;
-                            showMainApp();
-                            alert('Données chargées avec succès !');
-                        } else {
-                            alert('Mot de passe incorrect.');
-                        }
-                    } else {
-                        alert('Format de fichier de données invalide.');
-                    }
-                } catch (err) {
-                    // Amélioration pour le débogage : on affiche l'erreur dans la console
-                    console.error("Erreur lors de la lecture du fichier :", err);
-                    alert('Erreur lors de la lecture ou de l\'analyse du fichier.');
-                }
+                        if (p === d.password) { appData = d; showMainApp(); alert('Données chargées avec succès !'); } else { alert('Mot de passe incorrect.'); }
+                    } else { alert('Format de fichier de données invalide.'); }
+                } catch (err) { console.error("Erreur lors de la lecture du fichier :", err); alert('Erreur lors de la lecture ou de l\'analyse du fichier.'); }
             };
-            
             r.readAsText(f);
         }
         function migrateData(data) {
-            // Si data.structure existe, c'est un ancien format de fichier
             if (data.structure) {
                 console.log("Migration de l'ancien format de données en cours...");
-                Object.keys(data.years).forEach(year => {
-                    // Si une année n'a pas sa propre structure, on lui copie la structure globale
-                    if (!data.years[year].structure) {
-                        // Copie en profondeur pour éviter les références
-                        data.years[year].structure = JSON.parse(JSON.stringify(data.structure));
-                    }
-                });
-                // On supprime l'ancienne clé globale
+                Object.keys(data.years).forEach(year => { if (!data.years[year].structure) { data.years[year].structure = JSON.parse(JSON.stringify(data.structure)); } });
                 delete data.structure;
             }
-            Object.keys(data.years).forEach(year => {
-                if (data.years[year].structure) {
-                    data.years[year].structure = migrateStructureToArrayFormat(data.years[year].structure);
-                }
-            });
+            Object.keys(data.years).forEach(year => { if (data.years[year].structure) { data.years[year].structure = migrateStructureToArrayFormat(data.years[year].structure); } });
             return data;
         }
         function migrateStructureToArrayFormat(structure) {
-            if (!structure || Array.isArray(structure.accounts)) {
-                return structure; // Déjà au bon format ou structure invalide
-            }
-
+            if (!structure || Array.isArray(structure.accounts)) { return structure; }
             console.log("Migration de la structure vers un format de tableau...");
             const newAccounts = Object.keys(structure.accounts).map(accId => {
                 const account = structure.accounts[accId];
                 const newSections = Object.keys(account.sections).map(secId => {
                     const section = account.sections[secId];
-                    const newSubsections = Object.keys(section.subsections).map(subId => {
-                        return { id: subId, name: section.subsections[subId].name };
-                    });
+                    const newSubsections = Object.keys(section.subsections).map(subId => ({ id: subId, name: section.subsections[subId].name }));
                     return { id: secId, name: section.name, subsections: newSubsections };
                 });
                 return { id: accId, name: account.name, sections: newSections };
             });
-
             return { accounts: newAccounts };
         }
         function showAutoSaveIndicator() { const i = document.getElementById('autoSaveIndicator'); i.classList.add('show'); setTimeout(() => i.classList.remove('show'), 2000); }
         function login() { const p = document.getElementById('passwordInput').value; if (!p) return alert('Veuillez entrer un mot de passe'); if (!appData.password) { appData.password = p; showMainApp(); renderStartingBalances(); alert('Mot de passe défini ! Pensez à sauvegarder votre fichier régulièrement.'); } else if (appData.password === p) { showMainApp(); } else { alert('Mot de passe incorrect'); } }
-        function showMainApp() { document.getElementById('loginScreen').classList.add('hidden'); document.getElementById('mainApp').classList.remove('hidden'); renderYearTabs(); renderTable(); renderStartingBalances(); populateFormDropdowns(); }
+        function showMainApp() { document.getElementById('loginScreen').classList.add('hidden'); document.getElementById('mainApp').classList.remove('hidden'); resetUiState(); renderYearTabs(); renderTable(); renderStartingBalances(); populateFormDropdowns(); }
         function logout() { if (confirm('Voulez-vous sauvegarder vos données avant de vous déconnecter ?')) { saveDataFile(); } document.getElementById('loginScreen').classList.remove('hidden'); document.getElementById('mainApp').classList.add('hidden'); document.getElementById('passwordInput').value = ''; document.getElementById('dataFileInput').value = ''; }
         function exportData() {
             let c = "Compte,Section,Sous-section,Opération,Type,Janv,Févr,Mars,Avr,Mai,Juin,Juil,Août,Sept,Oct,Nov,Déc\n";
             const y = appData.years[appData.currentYear];
-            if (y) {
+            const structure = getCurrentStructure();
+            if (y && structure) {
                 ['actual', 'projected'].forEach(t => {
                     const d = y[t];
                     if (d) {
                         Object.values(d).forEach(a => {
-                            const account = getCurrentStructure()?.accounts.find(acc => acc.id === a.account);
-                            const section = account?.sections.find(sec => sec.id === a.section);
-                            const subsection = section?.subsections.find(sub => sub.id === a.subsection);
-
-                            const an = account?.name || a.account;
-                            const sn = section?.name || a.section;
-                            const ssn = subsection?.name || a.subsection;
-                            c += `"${an}","${sn}","${ssn}","${a.name}","${t}",${a.months.map(v => v || 0).join(',')}\n`;
+                            const account = structure.accounts.find(acc => acc.id === a.account);
+                            const section = a.section ? account?.sections.find(sec => sec.id === a.section) : null;
+                            const subsection = a.subsection && section ? section.subsections.find(sub => sub.id === a.subsection) : null;
+                            const an = account?.name || a.account; const sn = section?.name || ''; const ssn = subsection?.name || '';
+                            c += `"${an}","${sn}","${ssn}","${a.name || ''}","${t}",${a.months.map(v => v || 0).join(',')}\n`;
                         });
                     }
                 });
             }
-            const b = new Blob([c],{type:'text/csv;charset=utf-8;'});
-            const u = URL.createObjectURL(b);
-            const a = document.createElement('a');
-            a.href = u;
-            a.download = `mon-budget-export-${appData.currentYear}.csv`;
-            a.click();
-            URL.revokeObjectURL(u);
+            const b = new Blob([c],{type:'text/csv;charset=utf-8;'}); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = `mon-budget-export-${appData.currentYear}.csv`; a.click(); URL.revokeObjectURL(u);
         }
         
         // --- UI & TABLE RENDERING ---
         function renderYearTabs() { const c = document.getElementById('yearTabs'); c.innerHTML = ''; const y = Object.keys(appData.years).sort((a,b)=>parseInt(b)-parseInt(a)); y.forEach(y => { const t = document.createElement('div'); t.className = `year-tab ${y == appData.currentYear ? 'active' : ''}`; t.textContent = y; t.onclick = () => switchYear(y); c.appendChild(t); }); }
-        function switchYear(y) { appData.currentYear = parseInt(y); renderYearTabs(); renderTable(); renderStartingBalances(); }
+        function switchYear(y) { appData.currentYear = parseInt(y); resetUiState(); renderYearTabs(); renderTable(); renderStartingBalances(); }
         function addNewYear() {
             const y = prompt("Entrez l'année (AAAA) :");
             if (y && /^\d{4}$/.test(y)) {
                 const i = parseInt(y);
                 if (!appData.years[i]) {
-                    // Copie en profondeur de la structure de l'année actuelle vers la nouvelle
                     const currentStructure = getCurrentStructure();
-                    appData.years[i] = {
-                        actual: {},
-                        projected: {},
-                        startingBalances: {},
-                        structure: JSON.parse(JSON.stringify(currentStructure)) // DEEP COPY
-                    };
-                    appData.currentYear = i;
-                    renderYearTabs();
-                    renderTable();
-                    renderStartingBalances();
+                    appData.years[i] = { actual: {}, projected: {}, startingBalances: {}, structure: JSON.parse(JSON.stringify(currentStructure)) };
+                    appData.currentYear = i; resetUiState(); renderYearTabs(); renderTable(); renderStartingBalances();
                 }
             }
         }
+        function deleteCurrentYear() {
+            const yearKeys = Object.keys(appData.years);
+            if (yearKeys.length <= 1) { alert("Impossible de supprimer la dernière année restante."); return; }
+            if (confirm(`Êtes-vous sûr(e) de vouloir supprimer définitivement l'année ${appData.currentYear} et toutes ses données ?`)) {
+                delete appData.years[appData.currentYear];
+                const remainingYears = Object.keys(appData.years).sort((a,b) => parseInt(b) - parseInt(a));
+                switchYear(parseInt(remainingYears[0]));
+                alert(`L'année a été supprimée. Affichage de l'année ${appData.currentYear}.`); showAutoSaveIndicator();
+            }
+        }
+        
+        function toggleAccountCollapse(accountId) { uiState.collapsed[accountId] = !uiState.collapsed[accountId]; renderTable(); }
+        function toggleSectionCollapse(sectionId) { uiState.collapsed[sectionId] = !uiState.collapsed[sectionId]; renderTable(); }
+        function collapseAll() {
+            const structure = getCurrentStructure();
+            if (!structure) return;
+            structure.accounts.forEach(acc => {
+                uiState.collapsed[acc.id] = true;
+                acc.sections.forEach(sec => { uiState.collapsed[sec.id] = true; });
+            });
+            renderTable();
+        }
+        function expandAll() { resetUiState(); renderTable(); }
+
         function renderTable() {
             const table = document.getElementById('financialTable');
             table.innerHTML = '';
@@ -845,31 +875,51 @@
             if (!structure || !structure.accounts) return;
 
             structure.accounts.forEach(account => {
+                const isAccountCollapsed = uiState.collapsed[account.id];
+                const accountToggleIcon = isAccountCollapsed ? '▶' : '▼';
                 const accountRow = document.createElement('tr');
-                accountRow.innerHTML = `<th class="account-header" colspan="13">${account.name}</th>`;
+                accountRow.innerHTML = `<th class="account-header" colspan="13" onclick="toggleAccountCollapse('${account.id}')" style="cursor: pointer;">${accountToggleIcon} ${account.name}</th>`;
                 table.appendChild(accountRow);
-                account.sections.forEach(section => {
-                    const sectionRow = document.createElement('tr');
-                    sectionRow.innerHTML = `<th class="section-header" colspan="13">${section.name}</th>`;
-                    table.appendChild(sectionRow);
-                    section.subsections.forEach(subsection => {
-                        renderSubsectionRow(table, account.id, section.id, subsection.id, subsection, allActions);
+
+                if (!isAccountCollapsed) {
+                    renderSubsectionRow(table, account.id, "", "", { name: '<em>(Opérations sans section)</em>' }, allActions);
+                    account.sections.forEach(section => {
+                        const isSectionCollapsed = uiState.collapsed[section.id];
+                        const sectionToggleIcon = isSectionCollapsed ? '▶' : '▼';
+                        const sectionRow = document.createElement('tr');
+                        sectionRow.innerHTML = `<th class="section-header" colspan="13" onclick="toggleSectionCollapse('${section.id}')" style="cursor: pointer;">${sectionToggleIcon} ${section.name}</th>`;
+                        table.appendChild(sectionRow);
+                        
+                        if (!isSectionCollapsed) {
+                            renderSubsectionRow(table, account.id, section.id, "", { name: '<em>(Opérations sans sous-section)</em>' }, allActions);
+                            section.subsections.forEach(subsection => {
+                                renderSubsectionRow(table, account.id, section.id, subsection.id, subsection, allActions);
+                            });
+                            renderSectionTotalRow(table, account.id, section.id, section, allActions);
+                        }
                     });
-                    renderSectionTotalRow(table, account.id, section.id, section, allActions);
-                });
-                renderAccountBalanceRow(table, account.id, account, allActions);
+                    renderAccountBalanceRow(table, account.id, account, allActions);
+                }
             });
             renderGrandTotalBalanceRow(table, allActions);
         }
+
         function getActionsForCurrentYear() { const d = appData.years[appData.currentYear] || { actual: {}, projected: {} }; const a = []; ['actual', 'projected'].forEach(t => { Object.values(d[t] || {}).forEach(ac => a.push({ ...ac, type: t })); }); return a; }
+        
         function renderSubsectionRow(table, accountId, sectionId, subsectionId, subsection, allActions) {
-            const row = document.createElement('tr'); row.classList.add('subsection-row'); let html = `<td>${subsection.name}</td>`;
+            const relevantActions = allActions.filter(a => a.account === accountId && (a.section || "") === sectionId && (a.subsection || "") === subsectionId);
+            if(relevantActions.length === 0 && !subsection.id) return;
+            const row = document.createElement('tr'); 
+            row.classList.add('subsection-row'); 
+            let html = `<td>${subsection.name}</td>`;
+            if (!subsection.id) { html = `<td class="category-cell-no-section">${subsection.name}</td>`; }
             for (let i = 0; i < 12; i++) {
-                const actions = allActions.filter(a => a.account === accountId && a.section === sectionId && a.subsection === subsectionId && a.months[i] !== 0);
-                html += `<td>${actions.map(a => `<div class="action-item" onclick="editAction('${a.id}', '${a.type}')"><span>${a.name}${a.type==='projected'?' (P)':''}</span><span class="${a.months[i]>=0?'amount-positive':'amount-negative'}">${a.months[i].toFixed(2)}€</span></div>`).join('')}</td>`;
+                const actionsInMonth = relevantActions.filter(a => a.months[i] !== 0);
+                html += `<td>${actionsInMonth.map(a => `<div class="action-item" onclick="editAction('${a.id}', '${a.type}')"><span>${(a.name || '')}${a.type==='projected'?' (P)':''}</span><span class="${a.months[i]>=0?'amount-positive':'amount-negative'}">${a.months[i].toFixed(2)}€</span></div>`).join('')}</td>`;
             }
             row.innerHTML = html; table.appendChild(row);
         }
+
         function renderSectionTotalRow(table, accountId, sectionId, section, allActions) {
             const row = document.createElement('tr'); row.className = 'section-total-row'; let html = `<td><strong>Total ${section.name}</strong></td>`;
             for (let i = 0; i < 12; i++) { const t = allActions.filter(a => a.account === accountId && a.section === sectionId && a.months[i] !== 0).reduce((s, a) => s + a.months[i], 0); html += `<td class="${t >= 0 ? 'amount-positive' : 'amount-negative'}">${t.toFixed(2)}€</td>`; }
@@ -885,9 +935,9 @@
         }
         function renderGrandTotalBalanceRow(table, allActions) {
             const row = document.createElement('tr'); row.className = 'grand-total-balance-row'; let totalBal = Array(12).fill(0);
-            Object.keys(getCurrentStructure().accounts).forEach(id => {
-                let net = Array(12).fill(0); allActions.forEach(a => { if (a.account === id) a.months.forEach((amt, i) => net[i] += amt); });
-                let accBal = Array(12).fill(0); accBal[0] = getStartingBalance(id) + net[0];
+            getCurrentStructure().accounts.forEach(account => {
+                let net = Array(12).fill(0); allActions.forEach(a => { if (a.account === account.id) a.months.forEach((amt, i) => net[i] += amt); });
+                let accBal = Array(12).fill(0); accBal[0] = getStartingBalance(account.id) + net[0];
                 for(let i=1; i<12; i++) accBal[i] = accBal[i-1] + net[i];
                 totalBal.forEach((_, i) => totalBal[i] += accBal[i]);
             });
@@ -914,305 +964,370 @@
         function showAddActionForm() { document.getElementById('addActionForm').style.display = 'block'; document.getElementById('formTitle').textContent = 'Ajouter une Opération'; document.getElementById('addOrUpdateButton').textContent = 'Ajouter'; document.getElementById('deleteActionButton').style.display = 'none'; populateFormDropdowns(); clearActionForm(); }
         function hideAddActionForm() { document.getElementById('addActionForm').style.display = 'none'; appData.editingAction = null; clearActionForm(); }
         function clearActionForm() { ['actionName', 'actionAmount'].forEach(id => document.getElementById(id).value = ''); document.getElementById('actionMonth').value = new Date().getMonth(); document.getElementById('actionType').value = 'actual'; ['actionAccount', 'actionSection', 'actionSubsection'].forEach(id => { const s = document.getElementById(id); if (s.options.length > 0) s.selectedIndex = 0; }); }
+        
         function populateFormDropdowns() {
-            const a = document.getElementById('actionAccount');
-            a.innerHTML = '';
+            const a = document.getElementById('actionAccount'); a.innerHTML = '';
             const accounts = getCurrentStructure()?.accounts || [];
-            accounts.forEach(acc => {
-                const o = document.createElement('option');
-                o.value = acc.id;
-                o.textContent = acc.name;
-                a.appendChild(o);
-            });
+            accounts.forEach(acc => { const o = document.createElement('option'); o.value = acc.id; o.textContent = acc.name; a.appendChild(o); });
             populateSections();
             a.onchange = populateSections;
         }
         function populateSections() {
             const aId = document.getElementById('actionAccount').value;
-            const s = document.getElementById('actionSection');
-            s.innerHTML = '';
+            const s = document.getElementById('actionSection'); s.innerHTML = '<option value="">Aucune</option>';
             const account = getCurrentStructure()?.accounts.find(acc => acc.id === aId);
-            if (account) {
-                account.sections.forEach(sec => {
-                    const o = document.createElement('option');
-                    o.value = sec.id;
-                    o.textContent = sec.name;
-                    s.appendChild(o);
-                });
-            }
+            if (account) { account.sections.forEach(sec => { const o = document.createElement('option'); o.value = sec.id; o.textContent = sec.name; s.appendChild(o); }); }
             populateSubsections();
             s.onchange = populateSubsections;
         }
         function populateSubsections() {
             const aId = document.getElementById('actionAccount').value;
             const sId = document.getElementById('actionSection').value;
-            const ss = document.getElementById('actionSubsection');
-            ss.innerHTML = '';
-            const account = getCurrentStructure()?.accounts.find(acc => acc.id === aId);
-            if (account) {
-                const section = account.sections.find(sec => sec.id === sId);
-                if (section) {
-                    section.subsections.forEach(sub => {
-                        const o = document.createElement('option');
-                        o.value = sub.id;
-                        o.textContent = sub.name;
-                        ss.appendChild(o);
-                    });
+            const ss = document.getElementById('actionSubsection'); ss.innerHTML = '<option value="">Aucune</option>';
+            if (sId) {
+                const account = getCurrentStructure()?.accounts.find(acc => acc.id === aId);
+                if (account) {
+                    const section = account.sections.find(sec => sec.id === sId);
+                    if (section) { section.subsections.forEach(sub => { const o = document.createElement('option'); o.value = sub.id; o.textContent = sub.name; ss.appendChild(o); }); }
                 }
             }
         }
-        function addAction() { const n = document.getElementById('actionName').value, a = document.getElementById('actionAccount').value, s = document.getElementById('actionSection').value, ss = document.getElementById('actionSubsection').value, m = parseInt(document.getElementById('actionMonth').value), amt = parseFloat(document.getElementById('actionAmount').value), t = document.getElementById('actionType').value; if (!a || !s || !ss || isNaN(amt)) return alert('Veuillez remplir les champs obligatoires : Compte, Section, Sous-section et Montant.'); if (!appData.years[appData.currentYear][t]) appData.years[appData.currentYear][t] = {}; if (appData.editingAction) { const act = appData.years[appData.currentYear][appData.editingAction.type][appData.editingAction.id]; act.name = n; act.account = a; act.section = s; act.subsection = ss; act.months.fill(0); act.months[m] = amt; } else { const id = 'action_' + Date.now(); appData.years[appData.currentYear][t][id] = { id: id, name: n, account: a, section: s, subsection: ss, months: Array(12).fill(0) }; appData.years[appData.currentYear][t][id].months[m] = amt; } renderTable(); hideAddActionForm(); showAutoSaveIndicator(); }
-        function editAction(id, type) { const a = appData.years[appData.currentYear][type][id]; if (!a) return; showAddActionForm(); document.getElementById('formTitle').textContent = "Modifier l'Opération"; document.getElementById('addOrUpdateButton').textContent = 'Mettre à Jour'; document.getElementById('deleteActionButton').style.display = 'inline-block'; let m = a.months.findIndex(v => v !== 0); if (m === -1) m = 0; document.getElementById('actionName').value = a.name; document.getElementById('actionAccount').value = a.account; populateSections(); document.getElementById('actionSection').value = a.section; populateSubsections(); document.getElementById('actionSubsection').value = a.subsection; document.getElementById('actionMonth').value = m; document.getElementById('actionAmount').value = a.months[m] || 0; document.getElementById('actionType').value = type; appData.editingAction = { id: id, type: type }; }
+        function addAction() { 
+            const n = document.getElementById('actionName').value, a = document.getElementById('actionAccount').value, s = document.getElementById('actionSection').value, ss = document.getElementById('actionSubsection').value, m = parseInt(document.getElementById('actionMonth').value), amt = parseFloat(document.getElementById('actionAmount').value), t = document.getElementById('actionType').value; 
+            if (!a || isNaN(amt)) return alert('Veuillez remplir les champs obligatoires : Compte et Montant.'); 
+            if (!appData.years[appData.currentYear][t]) appData.years[appData.currentYear][t] = {}; 
+            if (appData.editingAction) { 
+                const act = appData.years[appData.currentYear][appData.editingAction.type][appData.editingAction.id]; 
+                act.name = n; act.account = a; act.section = s; act.subsection = ss; act.months.fill(0); act.months[m] = amt; 
+            } else { 
+                const id = 'action_' + Date.now(); 
+                appData.years[appData.currentYear][t][id] = { id, name: n, account: a, section: s, subsection: ss, months: Array(12).fill(0) }; 
+                appData.years[appData.currentYear][t][id].months[m] = amt; 
+            } 
+            renderTable(); hideAddActionForm(); showAutoSaveIndicator(); 
+        }
+        function editAction(id, type) { 
+            const a = appData.years[appData.currentYear][type][id]; if (!a) return; 
+            if (a.isTransfer) { alert("Les virements inter-comptes ne peuvent pas être modifiés. Veuillez les supprimer et en créer un nouveau."); return; }
+            showAddActionForm(); 
+            document.getElementById('formTitle').textContent = "Modifier l'Opération"; document.getElementById('addOrUpdateButton').textContent = 'Mettre à Jour'; document.getElementById('deleteActionButton').style.display = 'inline-block'; 
+            let m = a.months.findIndex(v => v !== 0); if (m === -1) m = 0; 
+            document.getElementById('actionName').value = a.name; document.getElementById('actionAccount').value = a.account; 
+            populateSections(); document.getElementById('actionSection').value = a.section || "";
+            populateSubsections(); document.getElementById('actionSubsection').value = a.subsection || "";
+            document.getElementById('actionMonth').value = m; document.getElementById('actionAmount').value = a.months[m] || 0; document.getElementById('actionType').value = type; 
+            appData.editingAction = { id: id, type: type }; 
+        }
         function deleteAction() { if (!appData.editingAction) return; if (confirm('Êtes-vous sûr(e) ?')) { const { id, type } = appData.editingAction; delete appData.years[appData.currentYear][type][id]; renderTable(); hideAddActionForm(); showAutoSaveIndicator(); } }
 
         // --- STATS MODAL ---
         function showStats() { const m = document.getElementById('statsModal'); document.getElementById('stats-modal-title').textContent = `Statistiques pour ${appData.currentYear}`; m.querySelector('#statsContent').innerHTML = generateStatsContent(); m.style.display = 'block'; setTimeout(createCharts, 150); }
+        
+        // MODIFIED FUNCTION
         function generateStatsContent() {
             const allActions = getActionsForCurrentYear();
-            let totalIncome = 0, totalExpenses = 0;
-            allActions.forEach(a => { const t = a.months.reduce((s, v) => s + v, 0); if (t >= 0) totalIncome += t; else totalExpenses += Math.abs(t); });
-            let finalTotalBalance = 0;
-            Object.keys(getCurrentStructure().accounts).forEach(id => { let bal = getStartingBalance(id); allActions.forEach(a => { if (a.account === id) bal += a.months.reduce((s,v) => s+v, 0); }); finalTotalBalance += bal; });
-            const netSavings = finalTotalBalance + totalIncome - totalExpenses;
+            const structure = getCurrentStructure();
+            
+            // 1. Prepare data arrays for each month
+            const monthlyIncome = Array(12).fill(0);
+            const monthlyExpenses = Array(12).fill(0);
+            const monthlyBiggestExpenseCategory = Array(12).fill('-');
+
+            // 2. Calculate totals for each month
+            for (let i = 0; i < 12; i++) {
+                const expensesInMonthByCategory = {};
+
+                allActions.forEach(action => {
+                    if (action.isTransfer) return; // Ignore transfers for income/expense calculation
+                    const amount = action.months[i] || 0;
+                    if (amount > 0) {
+                        monthlyIncome[i] += amount;
+                    } else if (amount < 0) {
+                        monthlyExpenses[i] += Math.abs(amount);
+                        
+                        // Group expenses by category to find the biggest one
+                        const account = structure.accounts.find(acc => acc.id === action.account);
+                        const section = account ? account.sections.find(sec => sec.id === action.section) : null;
+                        const subsection = section ? section.subsections.find(sub => sub.id === action.subsection) : null;
+                        
+                        let categoryName = section ? section.name : 'Non Catégorisé';
+                        if (subsection) categoryName += ` > ${subsection.name}`;
+
+                        expensesInMonthByCategory[categoryName] = (expensesInMonthByCategory[categoryName] || 0) + Math.abs(amount);
+                    }
+                });
+
+                // Find the biggest expense category for the month
+                if (Object.keys(expensesInMonthByCategory).length > 0) {
+                    let maxExpense = 0;
+                    let maxCategoryName = '-';
+                    for (const [category, total] of Object.entries(expensesInMonthByCategory)) {
+                        if (total > maxExpense) {
+                            maxExpense = total;
+                            maxCategoryName = category;
+                        }
+                    }
+                    monthlyBiggestExpenseCategory[i] = maxCategoryName;
+                }
+            }
+            
+            // 3. Build the HTML for the summary table
+            let tableHtml = `
+                <div class="table-container" style="margin-bottom: 20px;">
+                    <table class="financial-table">
+                        <thead>
+                            <tr>
+                                <th>Mois</th>
+                                <th>Revenus</th>
+                                <th>Dépenses</th>
+                                <th>Différence</th>
+                                <th>Plus Grosse Dépense</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            for (let i = 0; i < 12; i++) {
+                const difference = monthlyIncome[i] - monthlyExpenses[i];
+                const diffClass = difference >= 0 ? 'amount-positive' : 'amount-negative';
+                
+                tableHtml += `
+                    <tr>
+                        <td><strong>${months[i]}</strong></td>
+                        <td class="amount-positive">${monthlyIncome[i].toFixed(2)}€</td>
+                        <td class="amount-negative">${monthlyExpenses[i].toFixed(2)}€</td>
+                        <td class="${diffClass}">${difference.toFixed(2)}€</td>
+                        <td>${monthlyBiggestExpenseCategory[i]}</td>
+                    </tr>
+                `;
+            }
+
+            tableHtml += '</tbody></table></div>';
+            
+            // 4. Return the complete HTML for the modal content
             return `
                 <div style="margin-bottom: 20px;"><button class="btn btn-primary" onclick="downloadStatsPNG()">🖼️ Télécharger l'Image</button></div>
                 <div id="statsExportArea">
-                    <div class="stats-container"><div class="stat-card"><div class="stat-value amount-positive">${totalIncome.toFixed(2)}€</div><div class="stat-label">Total des Revenus</div></div><div class="stat-card"><div class="stat-value amount-negative">${totalExpenses.toFixed(2)}€</div><div class="stat-label">Total des Dépenses</div></div><div class="stat-card"><div class="stat-value ${netSavings >= 0 ? 'amount-positive' : 'amount-negative'}">${netSavings.toFixed(2)}€</div><div class="stat-label">Épargne Nette</div></div></div>
+                    ${tableHtml}
                     <div class="chart-container"><h3>Aperçu du Solde Total</h3><canvas id="balanceOverviewChart"></canvas></div>
                     <div class="chart-container"><h3>Revenus vs Dépenses par Mois</h3><canvas id="incomeExpensesChart"></canvas></div>
                 </div>`;
         }
+        
         function createCharts() {
             const allActions = getActionsForCurrentYear();
+            
+            // --- Chart 1: Balance Overview (inclut les virements) ---
             let totalBalanceData = Array(12).fill(0);
-            Object.keys(getCurrentStructure().accounts).forEach(id => {
-                let monthlyNet = Array(12).fill(0); allActions.forEach(a => { if (a.account === id) a.months.forEach((amt, i) => monthlyNet[i] += amt); });
-                let cumulative = Array(12).fill(0); cumulative[0] = getStartingBalance(id) + monthlyNet[0];
-                for (let i = 1; i < 12; i++) cumulative[i] = cumulative[i - 1] + monthlyNet[i];
+            const accounts = getCurrentStructure()?.accounts || [];
+            accounts.forEach(account => {
+                let monthlyNet = Array(12).fill(0); 
+                allActions.forEach(a => { if (a.account === account.id) a.months.forEach((amt, i) => monthlyNet[i] += amt); });
+                let cumulative = Array(12).fill(0); 
+                cumulative[0] = getStartingBalance(account.id) + monthlyNet[0];
+                for (let i = 1; i < 12; i++) { cumulative[i] = cumulative[i - 1] + monthlyNet[i]; }
                 totalBalanceData.forEach((_, i) => totalBalanceData[i] += cumulative[i]);
             });
-            const balCtx = document.getElementById('balanceOverviewChart');
-            if (balCtx) { const ex = Chart.getChart(balCtx); if (ex) ex.destroy(); new Chart(balCtx, { type: 'line', data: { labels: months, datasets: [{ label: 'Solde Total', data: totalBalanceData, borderColor: '#F57C00', backgroundColor: 'rgba(245, 124, 0, 0.2)', tension: 0.4, fill: true }] }, options: { responsive: true, animation: false, scales: { y: { ticks: { callback: v => v.toFixed(0) + '€' } } } } }); }
-            let monthlyIncExp = Array(12).fill(0).map(() => ({ income: 0, expenses: 0 }));
-            allActions.forEach(a => { a.months.forEach((amt, i) => { if (amt) { if (amt > 0) monthlyIncExp[i].income += amt; else monthlyIncExp[i].expenses += Math.abs(amt); } }); });
-            const incExpCtx = document.getElementById('incomeExpensesChart');
-            if (incExpCtx) { const ex = Chart.getChart(incExpCtx); if (ex) ex.destroy(); new Chart(incExpCtx, { type: 'bar', data: { labels: months, datasets: [{ label: 'Revenus', data: monthlyIncExp.map(m => m.income), backgroundColor: '#81C784' }, { label: 'Dépenses', data: monthlyIncExp.map(m => m.expenses), backgroundColor: '#EF5350' }] }, options: { responsive: true, animation: false, scales: { y: { beginAtZero: true, ticks: { callback: v => v.toFixed(0) + '€' } } } } }); }
-        }
-        function downloadStatsPNG() {
-            const exportArea = document.getElementById('statsExportArea');
-            html2canvas(exportArea, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
-                const a = document.createElement('a');
-                a.href = imgData;
-                a.download = `statistiques-financieres-${appData.currentYear}.png`;
-                a.click();
+            const balCtx = document.getElementById('balanceOverviewChart'); 
+            if (balCtx) { 
+                const ex = Chart.getChart(balCtx); if (ex) ex.destroy(); 
+                new Chart(balCtx, { type: 'line', data: { labels: months, datasets: [{ label: 'Solde Total', data: totalBalanceData, borderColor: '#F57C00', backgroundColor: 'rgba(245, 124, 0, 0.2)', tension: 0.4, fill: true }] }, options: { responsive: true, animation: false, scales: { y: { ticks: { callback: v => v.toFixed(0) + '€' } } } } }); 
+            }
+
+            // --- Chart 2: Income vs. Stacked Expenses (exclut les virements) ---
+            const monthlyIncome = Array(12).fill(0);
+            const monthlyExpensesBySection = {};
+            const expenseSections = [];
+            const structure = getCurrentStructure();
+
+            if (structure) {
+                structure.accounts.forEach(acc => {
+                    acc.sections.forEach(sec => {
+                        if (!expenseSections.find(s => s.id === sec.id)) { expenseSections.push({ id: sec.id, name: sec.name }); }
+                    });
+                });
+            }
+            expenseSections.push({ id: 'uncategorized', name: 'Non Catégorisé' });
+            expenseSections.forEach(sec => { monthlyExpensesBySection[sec.id] = Array(12).fill(0); });
+            
+            allActions.forEach(a => {
+                if (a.isTransfer) return;
+                a.months.forEach((amt, i) => {
+                    if (amt > 0) { monthlyIncome[i] += amt; } 
+                    else if (amt < 0) {
+                        const sectionId = a.section || 'uncategorized';
+                        if (monthlyExpensesBySection[sectionId]) { monthlyExpensesBySection[sectionId][i] += Math.abs(amt); }
+                    }
+                });
             });
+
+            const colorPalette = ['#EF5350', '#FFA726', '#5C6BC0', '#FF7043', '#8D6E63', '#EC407A', '#78909C', '#AB47BC'];
+            const datasets = [];
+            datasets.push({ label: 'Revenus', data: monthlyIncome, backgroundColor: '#81C784', stack: 'incomeStack' });
+
+            let colorIndex = 0;
+            expenseSections.forEach(sec => {
+                const sectionTotal = monthlyExpensesBySection[sec.id].reduce((sum, val) => sum + val, 0);
+                if (sectionTotal > 0) {
+                    datasets.push({ label: sec.name, data: monthlyExpensesBySection[sec.id], backgroundColor: colorPalette[colorIndex % colorPalette.length], stack: 'expenseStack' });
+                    colorIndex++;
+                }
+            });
+
+            const incExpCtx = document.getElementById('incomeExpensesChart');
+            if (incExpCtx) { 
+                const ex = Chart.getChart(incExpCtx); if (ex) ex.destroy(); 
+                new Chart(incExpCtx, { type: 'bar', data: { labels: months, datasets: datasets }, options: { responsive: true, animation: false, plugins: { tooltip: { callbacks: { footer: function(tooltipItems) { let total = 0; tooltipItems.forEach(function(tooltipItem) { if (tooltipItem.dataset.stack === 'expenseStack') { total += tooltipItem.parsed.y; } }); if (tooltipItems[0].dataset.stack === 'expenseStack') { return 'Total Dépenses: ' + total.toFixed(2) + '€'; } return ''; } } } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { callback: v => v.toFixed(0) + '€' } } } } }); 
+            }
         }
+        function downloadStatsPNG() { const exportArea = document.getElementById('statsExportArea'); html2canvas(exportArea, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => { const imgData = canvas.toDataURL('image/png'); const a = document.createElement('a'); a.href = imgData; a.download = `statistiques-financieres-${appData.currentYear}.png`; a.click(); }); }
 
         // --- STRUCTURE MANAGEMENT ---
-        function showStructureManager() { const m = document.getElementById('structureModal'); const c = document.getElementById('structureContent'); c.innerHTML = generateStructureContent(); m.style.display = 'block'; }
+        function toggleStructureAccountCollapse(accountId) { structureUiState.collapsed[accountId] = !structureUiState.collapsed[accountId]; document.getElementById('structureContent').innerHTML = generateStructureContent(); }
+        function toggleStructureSectionCollapse(sectionId) { structureUiState.collapsed[sectionId] = !structureUiState.collapsed[sectionId]; document.getElementById('structureContent').innerHTML = generateStructureContent(); }
+        function showStructureManager() { structureUiState.collapsed = {}; const m = document.getElementById('structureModal'); const c = document.getElementById('structureContent'); c.innerHTML = generateStructureContent(); m.style.display = 'block'; }
+        
         function generateStructureContent() {
             let h = '<div style="margin-bottom: 20px;"><button class="btn btn-primary" onclick="addNewAccount()">+ Ajouter Compte</button></div>';
             const accounts = getCurrentStructure().accounts;
             accounts.forEach((account, accIndex) => {
-                const upDisabled = accIndex === 0 ? 'disabled' : '';
-                const downDisabled = accIndex === accounts.length - 1 ? 'disabled' : '';
-                h += `<div class="structure-item account">
-                        <span><strong>${account.name}</strong></span>
-                        <div class="structure-actions">
-                            <button class="btn" ${upDisabled} onclick="moveStructureItem('account', 'up', { accountId: '${account.id}' })">▲</button>
-                            <button class="btn" ${downDisabled} onclick="moveStructureItem('account', 'down', { accountId: '${account.id}' })">▼</button>
-                            <button class="btn btn-primary" onclick="addNewSection('${account.id}')">+ Section</button>
-                            <button class="btn btn-warning" onclick="editAccount('${account.id}')">Modifier</button>
-                            <button class="btn btn-danger" onclick="deleteAccount('${account.id}')">Supprimer</button>
-                        </div>
-                    </div>`;
-                account.sections.forEach((section, secIndex) => {
-                    const upSecDisabled = secIndex === 0 ? 'disabled' : '';
-                    const downSecDisabled = secIndex === account.sections.length - 1 ? 'disabled' : '';
-                    h += `<div class="structure-item section">
-                            <span>${section.name}</span>
-                            <div class="structure-actions">
-                                <button class="btn" ${upSecDisabled} onclick="moveStructureItem('section', 'up', { accountId: '${account.id}', sectionId: '${section.id}' })">▲</button>
-                                <button class="btn" ${downSecDisabled} onclick="moveStructureItem('section', 'down', { accountId: '${account.id}', sectionId: '${section.id}' })">▼</button>
-                                <button class="btn btn-primary" onclick="addNewSubsection('${account.id}', '${section.id}')">+ Sous-section</button>
-                                <button class="btn btn-warning" onclick="editSection('${account.id}', '${section.id}')">Modifier</button>
-                                <button class="btn btn-danger" onclick="deleteSection('${account.id}', '${section.id}')">Supprimer</button>
-                            </div>
-                        </div>`;
-                    section.subsections.forEach((subsection, subIndex) => {
-                        const upSubDisabled = subIndex === 0 ? 'disabled' : '';
-                        const downSubDisabled = subIndex === section.subsections.length - 1 ? 'disabled' : '';
-                        h += `<div class="structure-item subsection">
-                                <span>${subsection.name}</span>
-                                <div class="structure-actions">
-                                    <button class="btn" ${upSubDisabled} onclick="moveStructureItem('subsection', 'up', { accountId: '${account.id}', sectionId: '${section.id}', subsectionId: '${subsection.id}' })">▲</button>
-                                    <button class="btn" ${downSubDisabled} onclick="moveStructureItem('subsection', 'down', { accountId: '${account.id}', sectionId: '${section.id}', subsectionId: '${subsection.id}' })">▼</button>
-                                    <button class="btn btn-warning" onclick="editSubsection('${account.id}', '${section.id}', '${subsection.id}')">Modifier</button>
-                                    <button class="btn btn-danger" onclick="deleteSubsection('${account.id}', '${section.id}', '${subsection.id}')">Supprimer</button>
-                                </div>
-                            </div>`;
+                const isAccountCollapsed = structureUiState.collapsed[account.id]; const accountToggleIcon = isAccountCollapsed ? '▶' : '▼';
+                const upDisabled = accIndex === 0 ? 'disabled' : ''; const downDisabled = accIndex === accounts.length - 1 ? 'disabled' : '';
+                h += `<div class="structure-item account"><span style="cursor: pointer;" onclick="toggleStructureAccountCollapse('${account.id}')"><strong>${accountToggleIcon} ${account.name}</strong></span><div class="structure-actions"><button class="btn" ${upDisabled} onclick="moveStructureItem('account', 'up', { accountId: '${account.id}' })">▲</button><button class="btn" ${downDisabled} onclick="moveStructureItem('account', 'down', { accountId: '${account.id}' })">▼</button><button class="btn btn-primary" onclick="addNewSection('${account.id}')">+ Section</button><button class="btn btn-warning" onclick="editAccount('${account.id}')">Modifier</button><button class="btn btn-danger" onclick="deleteAccount('${account.id}')">Supprimer</button></div></div>`;
+                if (!isAccountCollapsed) {
+                    account.sections.forEach((section, secIndex) => {
+                        const isSectionCollapsed = structureUiState.collapsed[section.id]; const sectionToggleIcon = isSectionCollapsed ? '▶' : '▼';
+                        const upSecDisabled = secIndex === 0 ? 'disabled' : ''; const downSecDisabled = secIndex === account.sections.length - 1 ? 'disabled' : '';
+                        h += `<div class="structure-item section"><span style="cursor: pointer;" onclick="toggleStructureSectionCollapse('${section.id}')">${sectionToggleIcon} ${section.name}</span><div class="structure-actions"><button class="btn" ${upSecDisabled} onclick="moveStructureItem('section', 'up', { accountId: '${account.id}', sectionId: '${section.id}' })">▲</button><button class="btn" ${downSecDisabled} onclick="moveStructureItem('section', 'down', { accountId: '${account.id}', sectionId: '${section.id}' })">▼</button><button class="btn btn-primary" onclick="addNewSubsection('${account.id}', '${section.id}')">+ Sous-section</button><button class="btn btn-warning" onclick="editSection('${account.id}', '${section.id}')">Modifier</button><button class="btn btn-danger" onclick="deleteSection('${account.id}', '${section.id}')">Supprimer</button></div></div>`;
+                        if (!isSectionCollapsed) {
+                            section.subsections.forEach((subsection, subIndex) => {
+                                const upSubDisabled = subIndex === 0 ? 'disabled' : ''; const downSubDisabled = subIndex === section.subsections.length - 1 ? 'disabled' : '';
+                                h += `<div class="structure-item subsection"><span>${subsection.name}</span><div class="structure-actions"><button class="btn" ${upSubDisabled} onclick="moveStructureItem('subsection', 'up', { accountId: '${account.id}', sectionId: '${section.id}', subsectionId: '${subsection.id}' })">▲</button><button class="btn" ${downSubDisabled} onclick="moveStructureItem('subsection', 'down', { accountId: '${account.id}', sectionId: '${section.id}', subsectionId: '${subsection.id}' })">▼</button><button class="btn btn-warning" onclick="editSubsection('${account.id}', '${section.id}', '${subsection.id}')">Modifier</button><button class="btn btn-danger" onclick="deleteSubsection('${account.id}', '${section.id}', '${subsection.id}')">Supprimer</button></div></div>`;
+                            });
+                        }
                     });
-                });
+                }
             });
             return h;
         }
-        function addNewAccount() {
-            const n = prompt("Entrez le nom du nouveau compte :");
-            if (n) {
-                const i = 'account_' + Date.now();
-                getCurrentStructure().accounts.push({ id: i, name: n, sections: [] });
-                showStructureManager();
-                populateFormDropdowns();
-                renderStartingBalances();
-                renderTable();
-            }
-        }
-        function addNewSection(accountId) {
-            const n = prompt("Entrez le nom de la nouvelle section :");
-            if (n) {
-                const account = getCurrentStructure().accounts.find(a => a.id === accountId);
-                if (account) {
-                    const i = 'section_' + Date.now();
-                    account.sections.push({ id: i, name: n, subsections: [] });
-                    showStructureManager();
-                    populateFormDropdowns();
-                    renderTable();
-                }
-            }
-        }
-        function addNewSubsection(accountId, sectionId) {
-            const e = prompt("Entrez le nom de la nouvelle sous-section :");
-            if (e) {
-                const account = getCurrentStructure().accounts.find(a => a.id === accountId);
-                if (account) {
-                    const section = account.sections.find(s => s.id === sectionId);
-                    if (section) {
-                        const i = 'subsection_' + Date.now();
-                        section.subsections.push({ id: i, name: e });
-                        showStructureManager();
-                        populateFormDropdowns();
-                        renderTable();
-                    }
-                }
-            }
-        }
-        function editAccount(accountId) {
-            const account = getCurrentStructure().accounts.find(a => a.id === accountId);
-            if (!account) return;
-            const e = prompt("Modifier le nom du compte :", account.name);
-            if (e && e !== account.name) {
-                account.name = e;
-                showStructureManager();
-                populateFormDropdowns();
-                renderStartingBalances();
-                renderTable();
-            }
-        }
-        function editSection(accountId, sectionId) {
-            const account = getCurrentStructure().accounts.find(a => a.id === accountId);
-            if (!account) return;
-            const section = account.sections.find(s => s.id === sectionId);
-            if (!section) return;
-            const o = prompt("Modifier le nom de la section :", section.name);
-            if (o && o !== section.name) {
-                section.name = o;
-                showStructureManager();
-                populateFormDropdowns();
-                renderTable();
-            }
-        }
-        function editSubsection(accountId, sectionId, subsectionId) {
-            const account = getCurrentStructure().accounts.find(a => a.id === accountId);
-            if (!account) return;
-            const section = account.sections.find(s => s.id === sectionId);
-            if (!section) return;
-            const subsection = section.subsections.find(ss => ss.id === subsectionId);
-            if (!subsection) return;
-            const s = prompt("Modifier le nom de la sous-section :", subsection.name);
-            if (s && s !== subsection.name) {
-                subsection.name = s;
-                showStructureManager();
-                populateFormDropdowns();
-                renderTable();
-            }
-        }
-        function deleteAccount(accountId) {
-            if (confirm("Êtes-vous sûr(e) ? Ceci supprimera le compte et toutes ses données.")) {
-                const accounts = getCurrentStructure().accounts;
-                const index = accounts.findIndex(a => a.id === accountId);
-                if (index > -1) {
-                    accounts.splice(index, 1);
-                    showStructureManager();
-                    populateFormDropdowns();
-                    renderStartingBalances();
-                    renderTable();
-                }
-            }
-        }
-        function deleteSection(accountId, sectionId) {
-            if (confirm("Êtes-vous sûr(e) ? Ceci supprimera la section et toutes ses données.")) {
-                const account = getCurrentStructure().accounts.find(a => a.id === accountId);
-                if (account) {
-                    const index = account.sections.findIndex(s => s.id === sectionId);
-                    if (index > -1) {
-                        account.sections.splice(index, 1);
-                        showStructureManager();
-                        populateFormDropdowns();
-                        renderTable();
-                    }
-                }
-            }
-        }
-        function deleteSubsection(accountId, sectionId, subsectionId) {
-            if (confirm("Êtes-vous sûr(e) ? Ceci supprimera la sous-section et toutes ses données.")) {
-                const account = getCurrentStructure().accounts.find(a => a.id === accountId);
-                if (account) {
-                    const section = account.sections.find(s => s.id === sectionId);
-                    if (section) {
-                        const index = section.subsections.findIndex(ss => ss.id === subsectionId);
-                        if (index > -1) {
-                            section.subsections.splice(index, 1);
-                            showStructureManager();
-                            populateFormDropdowns();
-                            renderTable();
-                        }
-                    }
-                }
-            }
-        }
+        function addNewAccount() { const n = prompt("Entrez le nom du nouveau compte :"); if (n) { const i = 'account_' + Date.now(); getCurrentStructure().accounts.push({ id: i, name: n, sections: [] }); document.getElementById('structureContent').innerHTML = generateStructureContent(); populateFormDropdowns(); renderStartingBalances(); renderTable(); } }
+        function addNewSection(accountId) { const n = prompt("Entrez le nom de la nouvelle section :"); if (n) { const account = getCurrentStructure().accounts.find(a => a.id === accountId); if (account) { const i = 'section_' + Date.now(); account.sections.push({ id: i, name: n, subsections: [] }); document.getElementById('structureContent').innerHTML = generateStructureContent(); populateFormDropdowns(); renderTable(); } } }
+        function addNewSubsection(accountId, sectionId) { const e = prompt("Entrez le nom de la nouvelle sous-section :"); if (e) { const account = getCurrentStructure().accounts.find(a => a.id === accountId); if (account) { const section = account.sections.find(s => s.id === sectionId); if (section) { const i = 'subsection_' + Date.now(); section.subsections.push({ id: i, name: e }); document.getElementById('structureContent').innerHTML = generateStructureContent(); populateFormDropdowns(); renderTable(); } } } }
+        function editAccount(accountId) { const account = getCurrentStructure().accounts.find(a => a.id === accountId); if (!account) return; const e = prompt("Modifier le nom du compte :", account.name); if (e && e !== account.name) { account.name = e; document.getElementById('structureContent').innerHTML = generateStructureContent(); populateFormDropdowns(); renderStartingBalances(); renderTable(); } }
+        function editSection(accountId, sectionId) { const account = getCurrentStructure().accounts.find(a => a.id === accountId); if (!account) return; const section = account.sections.find(s => s.id === sectionId); if (!section) return; const o = prompt("Modifier le nom de la section :", section.name); if (o && o !== section.name) { section.name = o; document.getElementById('structureContent').innerHTML = generateStructureContent(); populateFormDropdowns(); renderTable(); } }
+        function editSubsection(accountId, sectionId, subsectionId) { const account = getCurrentStructure().accounts.find(a => a.id === accountId); if (!account) return; const section = account.sections.find(s => s.id === sectionId); if (!section) return; const subsection = section.subsections.find(ss => ss.id === subsectionId); if (!subsection) return; const s = prompt("Modifier le nom de la sous-section :", subsection.name); if (s && s !== subsection.name) { subsection.name = s; document.getElementById('structureContent').innerHTML = generateStructureContent(); populateFormDropdowns(); renderTable(); } }
+        function deleteAccount(accountId) { if (confirm("Êtes-vous sûr(e) ? Ceci supprimera le compte et toutes ses données.")) { const accounts = getCurrentStructure().accounts; const index = accounts.findIndex(a => a.id === accountId); if (index > -1) { accounts.splice(index, 1); document.getElementById('structureContent').innerHTML = generateStructureContent(); populateFormDropdowns(); renderStartingBalances(); renderTable(); } } }
+        function deleteSection(accountId, sectionId) { if (confirm("Êtes-vous sûr(e) ? Ceci supprimera la section et toutes ses données.")) { const account = getCurrentStructure().accounts.find(a => a.id === accountId); if (account) { const index = account.sections.findIndex(s => s.id === sectionId); if (index > -1) { account.sections.splice(index, 1); document.getElementById('structureContent').innerHTML = generateStructureContent(); populateFormDropdowns(); renderTable(); } } } }
+        function deleteSubsection(accountId, sectionId, subsectionId) { if (confirm("Êtes-vous sûr(e) ? Ceci supprimera la sous-section et toutes ses données.")) { const account = getCurrentStructure().accounts.find(a => a.id === accountId); if (account) { const section = account.sections.find(s => s.id === sectionId); if (section) { const index = section.subsections.findIndex(ss => ss.id === subsectionId); if (index > -1) { section.subsections.splice(index, 1); document.getElementById('structureContent').innerHTML = generateStructureContent(); populateFormDropdowns(); renderTable(); } } } } }
         function moveStructureItem(level, direction, ids) {
-            const structure = getCurrentStructure();
-            let list;
-            let itemIndex;
-
-            if (level === 'account') {
-                list = structure.accounts;
-                itemIndex = list.findIndex(a => a.id === ids.accountId);
-            } else if (level === 'section') {
-                const account = structure.accounts.find(a => a.id === ids.accountId);
-                list = account.sections;
-                itemIndex = list.findIndex(s => s.id === ids.sectionId);
-            } else if (level === 'subsection') {
-                const account = structure.accounts.find(a => a.id === ids.accountId);
-                const section = account.sections.find(s => s.id === ids.sectionId);
-                list = section.subsections;
-                itemIndex = list.findIndex(ss => ss.id === ids.subsectionId);
-            }
-
+            const structure = getCurrentStructure(); let list; let itemIndex;
+            if (level === 'account') { list = structure.accounts; itemIndex = list.findIndex(a => a.id === ids.accountId); } 
+            else if (level === 'section') { const account = structure.accounts.find(a => a.id === ids.accountId); list = account.sections; itemIndex = list.findIndex(s => s.id === ids.sectionId); } 
+            else if (level === 'subsection') { const account = structure.accounts.find(a => a.id === ids.accountId); const section = account.sections.find(s => s.id === ids.sectionId); list = section.subsections; itemIndex = list.findIndex(ss => ss.id === ids.subsectionId); }
             if (itemIndex === -1) return;
-
             const newIndex = direction === 'up' ? itemIndex - 1 : itemIndex + 1;
             if (newIndex < 0 || newIndex >= list.length) return;
-
-            // Déplacer l'élément
             const [item] = list.splice(itemIndex, 1);
             list.splice(newIndex, 0, item);
-
-            showStructureManager(); // Rafraîchir la modale
-            renderTable(); // Mettre à jour le tableau principal
-            showAutoSaveIndicator();
+            document.getElementById('structureContent').innerHTML = generateStructureContent(); renderTable(); showAutoSaveIndicator();
         }
+
+        // AJOUTÉ : Fonctions pour le virement inter-compte
+        function showTransferModal() {
+            const modal = document.getElementById('transferModal');
+            document.getElementById('transferName').value = '';
+            document.getElementById('transferAmount').value = '';
+            document.getElementById('transferMonth').value = new Date().getMonth();
+            populateTransferFormDropdowns();
+            modal.style.display = 'block';
+        }
+
+        function populateTransferFormDropdowns() {
+            const sourceSelect = document.getElementById('transferSourceAccount');
+            const destSelect = document.getElementById('transferDestAccount');
+            sourceSelect.innerHTML = '';
+            destSelect.innerHTML = '';
+            const accounts = getCurrentStructure()?.accounts || [];
+            accounts.forEach(acc => {
+                const o1 = document.createElement('option');
+                o1.value = acc.id;
+                o1.textContent = acc.name;
+                sourceSelect.appendChild(o1);
+                
+                const o2 = document.createElement('option');
+                o2.value = acc.id;
+                o2.textContent = acc.name;
+                destSelect.appendChild(o2);
+            });
+        }
+        
+        function ensureTransferSectionExists(accountId) {
+            const structure = getCurrentStructure();
+            const account = structure.accounts.find(a => a.id === accountId);
+            if (account && !account.sections.find(s => s.id === VIREMENT_SECTION_ID)) {
+                account.sections.push({
+                    id: VIREMENT_SECTION_ID,
+                    name: VIREMENT_SECTION_NAME,
+                    subsections: []
+                });
+            }
+        }
+
+        function addTransfer() {
+            const name = document.getElementById('transferName').value;
+            const sourceAccountId = document.getElementById('transferSourceAccount').value;
+            const destAccountId = document.getElementById('transferDestAccount').value;
+            const month = parseInt(document.getElementById('transferMonth').value);
+            const amount = parseFloat(document.getElementById('transferAmount').value);
+
+            if (sourceAccountId === destAccountId) {
+                alert("Le compte à débiter et le compte à créditer doivent être différents.");
+                return;
+            }
+            if (isNaN(amount) || amount <= 0) {
+                alert("Veuillez entrer un montant valide pour le virement.");
+                return;
+            }
+            
+            // S'assurer que la section "Virements" existe dans les deux comptes
+            ensureTransferSectionExists(sourceAccountId);
+            ensureTransferSectionExists(destAccountId);
+
+            const baseId = `transfer_${Date.now()}`;
+            const debitAction = {
+                id: `${baseId}_debit`,
+                name: name || `Virement vers ${document.getElementById('transferDestAccount').options[document.getElementById('transferDestAccount').selectedIndex].text}`,
+                account: sourceAccountId,
+                section: VIREMENT_SECTION_ID,
+                subsection: '',
+                months: Array(12).fill(0),
+                isTransfer: true // Marqueur spécial
+            };
+            debitAction.months[month] = -amount;
+
+            const creditAction = {
+                id: `${baseId}_credit`,
+                name: name || `Virement depuis ${document.getElementById('transferSourceAccount').options[document.getElementById('transferSourceAccount').selectedIndex].text}`,
+                account: destAccountId,
+                section: VIREMENT_SECTION_ID,
+                subsection: '',
+                months: Array(12).fill(0),
+                isTransfer: true // Marqueur spécial
+            };
+            creditAction.months[month] = amount;
+
+            if (!appData.years[appData.currentYear]['actual']) {
+                appData.years[appData.currentYear]['actual'] = {};
+            }
+            appData.years[appData.currentYear]['actual'][debitAction.id] = debitAction;
+            appData.years[appData.currentYear]['actual'][creditAction.id] = creditAction;
+
+            renderTable();
+            closeModal('transferModal');
+            showAutoSaveIndicator();
+            alert('Virement effectué avec succès !');
+        }
+
 
         // --- MODAL CONTROLS ---
         function closeModal(modalId) { document.getElementById(modalId).style.display = 'none'; }
